@@ -1,18 +1,39 @@
-
 services:
-  # 1. 앞으로 PQC 암호를 적용할 우리의 방패 (Nginx 웹 서버)
-  web-server:
-    image: nginx:latest
-    container_name: pqc-nginx-server
+  # 1. Nginx Proxy
+  proxy-server:
+    build: ./nginx
+    container_name: pqc-proxy
     ports:
       - "80:80"
       - "443:443"
-    # 나중에 여기에 볼륨을 연결해서 OQS-OpenSSL 인증서를 넣을 겁니다.
-
-  # 2. 웹 서버를 공격하고 성능을 테스트할 무기 (칼리 리눅스)
-  kali-client:
-    image: kalilinux/kali-rolling
-    container_name: kali-tester
-    command: tail -f /dev/null # 컨테이너가 꺼지지 않게 유지
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
-      - web-server
+      - backend-api
+    networks:
+      - pqc-network
+
+  # 2. 백엔드 (FastAPI Backend)
+  backend-api:
+    build: ./backend
+    container_name: service-backend
+    volumes:
+      - ./backend:/app
+    environment:
+      - ENV=development
+    networks:
+      - pqc-network
+
+  # 3. 테스터 (Kali Linux)
+  test-client:
+    build: ./tester
+    container_name: tls-tester
+    volumes:
+      - ./tester/captures:/data
+    command: tail -f /dev/null
+    networks:
+      - pqc-network
+
+networks:
+  pqc-network:
+    driver: bridge

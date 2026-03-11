@@ -1,0 +1,18 @@
+
+services:
+  # 1. 앞으로 PQC 암호를 적용할 우리의 방패 (Nginx 웹 서버)
+  web-server:
+    image: nginx:latest
+    container_name: pqc-nginx-server
+    ports:
+      - "80:80"
+      - "443:443"
+    # 나중에 여기에 볼륨을 연결해서 OQS-OpenSSL 인증서를 넣을 겁니다.
+
+  # 2. 웹 서버를 공격하고 성능을 테스트할 무기 (칼리 리눅스)
+  kali-client:
+    image: kalilinux/kali-rolling
+    container_name: kali-tester
+    command: tail -f /dev/null # 컨테이너가 꺼지지 않게 유지
+    depends_on:
+      - web-server

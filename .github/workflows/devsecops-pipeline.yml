@@ -1,0 +1,42 @@
+name: DevSecOps PQC Pipeline
+
+# main 브랜치에 Push되거나 PR이 열릴 때 파이프라인 작동
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  pqc-migration-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. 저장소 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: 2. 정적 보안 분석 (SAST & Secret)
+        run: |
+          echo "진행 중: 코드 내 하드코딩된 키 및 취약점 스캔..."
+          # 추후 추가: python policy/sast_scan.py
+
+      - name: 3. TLS 암호 정책 검증 (Security Gate)
+        run: |
+          echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
+          # 추후 추가: bash policy/check_tls_policy.sh
+          # 실패 시 파이프라인 여기서 강제 종료 (exit 1)
+
+      - name: 4. PQC Nginx 도커 빌드 및 가동
+        run: |
+          echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
+          # 추후 추가: docker-compose up -d
+
+      - name: 5. 배포 후 동적 검증 (Tshark 패킷 확인)
+        run: |
+          echo "진행 중: 서버로 TLS 연결 시도 및 PQC OID 확인..."
+          # 추후 추가: bash tester/verify_tls.sh
+
+      - name: 6. CBOM 명세서 생성 및 리포팅
+        run: |
+          echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
+          # 추후 추가: python policy/cbom_gen.py

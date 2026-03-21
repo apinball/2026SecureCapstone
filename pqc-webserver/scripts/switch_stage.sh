@@ -1,7 +1,17 @@
 #!/bin/bash
 
+# .env 로드
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+ENV_FILE="$SCRIPT_DIR/../.env"
+
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
+else
+    echo "오류: .env 파일이 없습니다. .env.example을 복사하여 .env를 생성하세요."
+    exit 1
+fi
+
 STAGE=$1
-NGINX_CONF_DIR=/home/yulimH/quantum-jump/pqc-webserver/nginx
 
 case $STAGE in
     1|ecc)
@@ -22,4 +32,4 @@ case $STAGE in
         ;;
 esac
 
-nginx -t && systemctl start nginx && echo "Nginx 재시작 완료"
+nginx -t && systemctl restart nginx && echo "Nginx 재시작 완료"

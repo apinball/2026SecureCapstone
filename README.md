@@ -1,50 +1,191 @@
+# 2026 Secure Capstone — PQC Migration DevSecOps
+
+> 양자 컴퓨터 위협에 대비한 **Post-Quantum Cryptography(PQC) TLS 마이그레이션** 자동화 파이프라인 구축 프로젝트
+
+---
+
+## 프로젝트 개요
+
+현재 인터넷 암호화의 근간인 RSA, ECDH 등의 알고리즘은 양자 컴퓨터 공격에 취약합니다.
+이 프로젝트는 **기존 Classical TLS → Hybrid PQC-TLS → Full PQC-TLS** 단계적 마이그레이션을 구현하고,
+GitHub Actions 기반 **DevSecOps 파이프라인**으로 각 단계의 보안 게이트를 자동 검증합니다.
+
+### TLS 마이그레이션 3단계
+
+| Stage | 방식 | 키 교환 알고리즘 | 상태 |
+|:---:|---|---|:---:|
+| Stage 1 | Classical TLS | X25519, P-256 (ECC) | ✅ |
+| Stage 2 | Hybrid PQC-TLS | X25519MLKEM768 (ECC + ML-KEM) | ✅ |
+| Stage 3 | Post-Quantum TLS | p521_mlkem1024, p384_mlkem768 | ✅ |
+
+---
+
+## 시스템 구성
+
+```
+클라이언트 (tls-tester)
+      │  HTTPS (TLS 1.3 + PQC)
+      ▼
+[pqc-proxy]  openquantumsafe/nginx — PQC TLS 종단
+      │  HTTP
+      ▼
+[service-backend]  FastAPI — 백엔드 API
+```
+
+### 컨테이너 구성
+
+| 컨테이너 | 이미지 | 역할 |
+|---|---|---|
+| `pqc-proxy` | `openquantumsafe/nginx` | PQC TLS 프록시 |
+| `service-backend` | Python FastAPI | 백엔드 API 서버 |
+| `tls-tester` | `openquantumsafe/curl` | TLS 검증 도구 |
+
+---
+
 ## 시작하기 (Getting Started)
 
-### 1. 환경 구축 (Development Mode)
-실시간 코드 수정이 반영되는 개발 모드로 컨테이너를 실행합니다.
+### 사전 요구사항
+
+- Docker Desktop
+- Git
+
+### 1. 저장소 클론
+
 ```bash
-docker-compose up -d --build
+git clone <repository-url>
+cd 2026SecureCapstone
 ```
 
-### 2. 패킷 캡처 및 분석
-테스트 컨테이너 내에서 통신을 감시하고 로컬 폴더(`tester/captures`)로 추출합니다.
+### 2. 컨테이너 빌드 및 실행
 
 ```bash
-# 1. 컨테이너 접속 및 캡처 시작
-docker exec -it tls-tester /bin/bash
-tshark -i eth0 -w /data/capture_test.pcap
+docker compose up -d --build
+```
 
-# 2. (별도 터미널에서 트래픽 발생)
-docker exec -it tls-tester curl http://proxy-server
+> 인증서는 빌드 시 자동 생성됩니다. 별도 설정 불필요.
 
-# 3. 저장된 파일은 로컬의 ./tester/captures/ 폴더에서 Wireshark로 확인
+### 3. 동작 확인
+
+```bash
+docker compose ps
 ```
 
 ---
 
-## 프로젝트 로드맵 (Project Roadmap)
+## TLS Stage 전환
 
-- [x] Phase 1: 3-Tier 기반 도커 베이스라인 구축 및 네트워크 연동
-- [ ] Phase 2: OQS-OpenSSL(Post-Quantum) 엔진 빌드 및 Nginx 탑재
-- [ ] Phase 3: 양자 내성 암호 기반 인증서 발급 및 하이브리드 TLS 설정
-- [ ] Phase 4: GitHub Actions 기반 자동 보안 검증 파이프라인 연동
-- [ ] Phase 5: 성능 비교 분석 (전통적 암호 vs PQC) 및 최종 결과 도출
+### 방법 1: 직접 전환 (로컬)
+
+`nginx/nginx.conf` 파일을 원하는 Stage의 내용으로 교체 후 nginx 재시작:
+
+```bash
+# Stage 1 (Classical ECC)
+cp nginx/nginx-ecc.conf nginx/nginx.conf
+
+# Stage 2 (Hybrid PQC) — 기본값
+cp nginx/nginx-hybrid.conf nginx/nginx.conf
+
+# Stage 3 (Post-Quantum)
+cp nginx/nginx-pq.conf nginx/nginx.conf
+
+docker compose restart proxy-server
+```
+
+### 방법 2: GitHub Actions (자동)
+
+GitHub → Actions 탭 → **DevSecOps PQC Pipeline** → **Run workflow** → Stage 선택 → 실행
+
+파이프라인이 자동으로 nginx.conf 교체 → Docker 빌드 → TLS 검증까지 수행합니다.
 
 ---
 
-## 폴더 구조 (Directory Structure)
+## TLS 검증
+
+컨테이너 실행 중 tester에서 TLS 협상 결과 확인:
+
+```bash
+# Stage 1 검증
+docker exec -it tls-tester verify_tls.sh pqc-proxy 443 1
+
+# Stage 2 검증
+docker exec -it tls-tester verify_tls.sh pqc-proxy 443 2
+
+# Stage 3 검증
+docker exec -it tls-tester verify_tls.sh pqc-proxy 443 3
+```
+
+### 출력 예시 (Stage 2)
 
 ```
-2026capstone/
- ┣ 📂 nginx/                    # Nginx 및 OQS 빌드 환경
- ┣ 📂 backend/                  # FastAPI 기반 웹 서버 로직
- ┣ 📂 tester/                   # 검증용 툴 및 패킷 캡처 저장소
- ┣ 📜 docker-compose.yml        # 개발용 설정 (Volume 연동)
- ┣ 📜 docker-compose.prod.yml   # 배포용 설정 (Clean Build)
- ┗ 📜 README.md
+=== TLS 협상 결과 검증: pqc-proxy:443 (Stage: 2) ===
+
+=== 요약 ===
+Protocol : TLSv1.3
+Cipher   : TLS_AES_256_GCM_SHA384
+Key Group: X25519MLKEM768
+
+판정: Stage 2 - Hybrid PQC-TLS ✓
 ```
 
- ---
+> **💡 검증 스크립트 작성 시 주의사항**
+> Stage 2(`X25519MLKEM768`)와 Stage 3(`p521_mlkem1024` 등) 키 그룹 모두 `mlkem` 문자열을 포함합니다.
+> 단순히 `mlkem` 포함 여부로 분기하면 Stage 3를 Stage 2로 오판할 수 있습니다.
+> **정확한 판정 기준: `x25519` 기반이면 Stage 2, `p384`/`p521` 기반이면 Stage 3**
+
+---
+
+## CI/CD 파이프라인
+
+`main`, `develop` 브랜치에 Push 또는 PR 시 자동 실행됩니다.
+GitHub 웹 인터페이스에서 **수동으로 실행(workflow_dispatch)** 하여 특정 Stage 전환을 강제 테스트할 수도 있습니다.
+
+```
+1. 저장소 코드 가져오기
+2. 정적 보안 분석 (SAST & Secret 스캔)
+3. TLS 암호 정책 검증 (Security Gate)
+4. PQC Nginx Docker 빌드 및 가동
+5. 배포 후 동적 TLS 검증
+6. CBOM 명세서 생성
+```
+
+---
+
+## 폴더 구조
+
+```
+2026SecureCapstone/
+ ┣ 📂 .github/
+ ┃ ┗ 📂 workflows/
+ ┃   ┗ 📜 devsecops-pipeline.yml  # CI/CD 파이프라인
+ ┣ 📂 nginx/                      # OQS-Nginx 설정
+ ┃ ┣ 📜 Dockerfile
+ ┃ ┣ 📜 nginx.conf                # 활성 설정 (Stage 전환 대상)
+ ┃ ┣ 📜 nginx-ecc.conf            # Stage 1: Classical TLS
+ ┃ ┣ 📜 nginx-hybrid.conf         # Stage 2: Hybrid PQC-TLS
+ ┃ ┗ 📜 nginx-pq.conf             # Stage 3: Post-Quantum TLS
+ ┣ 📂 backend/                    # FastAPI 백엔드
+ ┣ 📂 tester/                     # TLS 검증 도구
+ ┃ ┣ 📜 Dockerfile
+ ┃ ┗ 📜 verify_tls.sh             # TLS 협상 검증 스크립트
+ ┣ 📂 pqc-webserver/              # WSL2 직접 설치 참고용 (레거시)
+ ┣ 📜 docker-compose.yml          # 개발용
+ ┣ 📜 docker-compose.prod.yml     # 배포용
+ ┣ 📜 .gitattributes              # LF 줄바꿈 강제
+ ┗ 📜 .gitignore
+```
+
+---
+
+## 프로젝트 로드맵
+
+- [x] Phase 1: 3-Tier 기반 Docker 베이스라인 구축 및 네트워크 연동
+- [x] Phase 2: OQS-Nginx 기반 PQC TLS 3단계 Docker 통합
+- [x] Phase 3: Hybrid PQC-TLS 검증 (X25519MLKEM768 협상 확인)
+- [x] Phase 4: GitHub Actions DevSecOps 파이프라인 구현 (workflow_dispatch)
+- [ ] Phase 5: SAST, TLS 정책 검증, CBOM 생성 구현
+- [ ] Phase 6: 성능 비교 분석 (Classical vs PQC) 및 최종 결과 도출
+
+---
 
 # 프로젝트 협업 규칙 (Contribution Guide)
 
@@ -67,9 +208,9 @@ docker exec -it tls-tester curl http://proxy-server
 | `Chore` | 빌드 업무, 패키지 매니저 설정, 프로젝트 설정 변경 |
 
 ### 예시 (Example)
-* `Feat: 구글 소셜 로그인 기능 구현`
-* `Fix: 메인 페이지 이미지 로딩 에러 수정`
-* `Docs: 설치 방법 안내 섹션 추가`
+* `Feat: Stage 2 하이브리드 PQC용 nginx.conf 추가`
+* `Fix: TLS 정책 검증 스크립트 정규식 파싱 오류 수정`
+* `Docs: CBOM 생성 아키텍처 다이어그램 추가`
 
 ---
 
@@ -80,11 +221,11 @@ docker exec -it tls-tester curl http://proxy-server
 * **`main`**: 배포 가능한 상태의 안정된 코드만 관리합니다.
 * **`develop`**: 다음 출시를 위한 개발을 진행하는 브랜치입니다.
 * **`feature/기능명`**: 새로운 기능을 개발할 때 사용합니다.
-    * 예: `feature/login`, `feature/chart-ui`
+    * 예: `feature/sast-scanner`, `feature/oqs-nginx`, `feature/github-actions`
 * **`hotfix/이슈명`**: 배포 후 긴급 수정이 필요할 때 사용합니다.
 * **`docs/기능명`**: 문서 수정이 필요할 때 사용합니다.
 
-기능 브랜치 -> develop -> main
+**Workflow:** `feature` 브랜치 작업 → PR 생성 → `develop` 병합 → 배포 시 `main` 병합
 
 ---
 
@@ -99,4 +240,3 @@ docker exec -it tls-tester curl http://proxy-server
     * 주의 사항 및 참고 자료 (Optional)
 
 ---
-

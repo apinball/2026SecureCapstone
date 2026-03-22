@@ -1,0 +1,87 @@
+name: DevSecOps PQC Pipeline
+
+# main/develop 브랜치 Push·PR 또는 수동 실행 시 파이프라인 작동
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'TLS Stage 선택 (1=ECC, 2=Hybrid, 3=PQ)'
+        required: true
+        default: '2'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+
+jobs:
+  pqc-migration-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. 저장소 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: 2. 정적 보안 분석 (SAST & Secret)
+        run: |
+          echo "진행 중: 코드 내 하드코딩된 키 및 취약점 스캔..."
+          # 추후 추가: python policy/sast_scan.py
+
+      - name: 3. TLS 암호 정책 검증 (Security Gate)
+        run: |
+          echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
+          # 추후 추가: bash policy/check_tls_policy.sh
+          # 실패 시 파이프라인 여기서 강제 종료 (exit 1)
+
+      - name: 4. PQC Nginx 도커 빌드 및 가동
+        run: |
+          # workflow_dispatch 시 선택한 Stage로 nginx.conf 교체
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            STAGE="${{ github.event.inputs.stage }}"
+            if [ "$STAGE" = "1" ]; then
+              cp nginx/nginx-ecc.conf nginx/nginx.conf
+              echo "Stage 1: Classical TLS (ECC)로 설정"
+            elif [ "$STAGE" = "2" ]; then
+              cp nginx/nginx-hybrid.conf nginx/nginx.conf
+              echo "Stage 2: Hybrid PQC-TLS로 설정"
+            elif [ "$STAGE" = "3" ]; then
+              cp nginx/nginx-pq.conf nginx/nginx.conf
+              echo "Stage 3: Post-Quantum TLS로 설정"
+            fi
+          else
+            # push/PR 시: nginx.conf 내용으로 Stage 자동 감지
+            if grep -q "p521_mlkem\|p384_mlkem" nginx/nginx.conf; then
+              STAGE=3
+            elif grep -q "X25519MLKEM768\|x25519_mlkem" nginx/nginx.conf; then
+              STAGE=2
+            else
+              STAGE=1
+            fi
+            echo "nginx.conf에서 감지된 Stage: $STAGE"
+          fi
+          echo "STAGE=$STAGE" >> $GITHUB_ENV
+
+          echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
+          docker compose build
+          docker compose up -d
+          echo "서비스 시작 대기 중 (15초)..."
+          sleep 15
+          docker compose ps
+
+      - name: 5. 배포 후 동적 검증 (TLS 협상 확인)
+        run: |
+          echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
+          docker exec tls-tester verify_tls.sh proxy-server 443 ${{ env.STAGE }}
+
+      - name: 6. CBOM 명세서 생성 및 리포팅
+        run: |
+          echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
+          # 추후 추가: python policy/cbom_gen.py
+
+      - name: 컨테이너 정리
+        if: always()
+        run: docker compose down

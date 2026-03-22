@@ -62,7 +62,10 @@ if [[ "$GROUP_LOWER" == *"mlkem"* ]]; then
     fi
 else
     echo "판정: Stage 1 - Classical TLS (ECC) - PQC 미적용"
-    exit 1
+    if [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ] || [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
+        echo "[!] 오류: PQC TLS 연결이 필요하지만 협상에 실패했습니다."
+        exit 1
+    fi
 fi
 
 exit 0

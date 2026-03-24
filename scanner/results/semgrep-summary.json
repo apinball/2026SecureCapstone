@@ -1,0 +1,9 @@
+{
+  "tool": "semgrep",
+  "result": "pass",
+  "stage": 1,
+  "summary": {
+    "error": 0,
+    "warning": 0
+  }
+}

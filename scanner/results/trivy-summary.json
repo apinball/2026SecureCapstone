@@ -1,0 +1,10 @@
+{
+  "tool": "trivy",
+  "result": "fail",
+  "stage": 1,
+  "summary": {
+    "critical": 0,
+    "high": 3,
+    "medium": 0
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "stage": 1,
+  "overall": "fail",
+  "tools": {
+    "trivy": "fail",
+    "gitleaks": "pass",
+    "semgrep": "pass"
+  }
+}

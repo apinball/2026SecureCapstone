@@ -1,0 +1,14 @@
+title = "2026SecureCapstone Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+id = "allow-pqc-algorithm-names"
+description = "PQC algorithm names are not secrets"
+regexes = [
+    '''X25519MLKEM768''',
+    '''p521_mlkem1024''',
+    '''p384_mlkem768''',
+    '''X25519KYBER768''',
+]

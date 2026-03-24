@@ -58,8 +58,7 @@ DEFAULT_STRICT_VALIDATION = os.getenv("STRICT_VALIDATION", "false").strip().lowe
 # ── PQC 알고리즘 패턴 (명시적 매칭) ──────────────────────────────────────────
 # Stage 2: X25519 + MLKEM 하이브리드
 HYBRID_PQC_PATTERNS = [
-    re.compile(r"x25519\s*mlkem", re.IGNORECASE),
-    re.compile(r"x25519_mlkem", re.IGNORECASE),
+    re.compile(r"x25519[_\s]*mlkem", re.IGNORECASE),
     re.compile(r"X25519MLKEM", re.IGNORECASE),
 ]
 # Stage 3: P-curve + MLKEM 또는 순수 PQC
@@ -148,6 +147,21 @@ def split_directive_value(raw: str, mode: str) -> list:
     return [raw.strip()]
 
 
+def _parse_directives(config_text: str, patterns: dict) -> dict:
+    """설정 텍스트에서 정규식 패턴 딕셔너리에 해당하는 디렉티브를 추출하는 내부 헬퍼."""
+    findings = {}
+    for key, (pattern, mode) in patterns.items():
+        m = re.search(pattern, config_text, re.MULTILINE)
+        if not m:
+            continue
+        raw = m.group(1).strip()
+        if mode == "raw":
+            findings[key] = raw
+        else:
+            findings[key] = split_directive_value(raw, mode)
+    return findings
+
+
 # ── 정적 분석 ────────────────────────────────────────────────────────────────
 def static_analysis(config_path: str) -> dict:
     """로컬 nginx 설정 파일을 파싱하여 TLS 관련 디렉티브를 추출."""
@@ -175,16 +189,7 @@ def static_analysis(config_path: str) -> dict:
         "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
     }
 
-    for key, (pattern, mode) in patterns.items():
-        m = re.search(pattern, text, re.MULTILINE)
-        if not m:
-            continue
-
-        raw = m.group(1).strip()
-        if mode == "raw":
-            result["findings"][key] = raw
-        else:
-            result["findings"][key] = split_directive_value(raw, mode)
+    result["findings"] = _parse_directives(text, patterns)
 
     # TLS 1.3 전용 설정에서 ssl_ciphers가 없는 건 정상
     protocols = result["findings"].get("ssl_protocols", [])
@@ -228,23 +233,13 @@ def read_container_config(
 
 def parse_nginx_directives(config_text: str) -> dict:
     """컨테이너 내부 nginx 설정 문자열에서 핵심 TLS directive를 추출."""
-    findings = {}
     patterns = {
         "ssl_protocols": (r"ssl_protocols\s+([^;]+);", "space"),
         "ssl_ecdh_curve": (r"ssl_ecdh_curve\s+([^;]+);", "colon_or_space"),
         "ssl_certificate": (r"ssl_certificate\s+([^;]+);", "raw"),
         "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
     }
-    for key, (pattern, mode) in patterns.items():
-        m = re.search(pattern, config_text, re.MULTILINE)
-        if not m:
-            continue
-        raw = m.group(1).strip()
-        if mode == "raw":
-            findings[key] = raw
-        else:
-            findings[key] = split_directive_value(raw, mode)
-    return findings
+    return _parse_directives(config_text, patterns)
 
 
 # ── 단계 판정 ────────────────────────────────────────────────────────────────
@@ -647,7 +642,7 @@ def main():
                         help="결과 저장 경로 (미지정 시 stdout만 출력)")
     parser.add_argument(
         "--strict-validation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=DEFAULT_STRICT_VALIDATION,
         help="verify_tls.sh 판정과 cbom_gen 판정이 불일치하면 exit 3으로 종료",
     )

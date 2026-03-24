@@ -1,8 +1,0 @@
-{
-  "tool": "gitleaks",
-  "result": "pass",
-  "stage": 1,
-  "summary": {
-    "leaks_found": 0
-  }
-}

@@ -13,7 +13,6 @@ SUMMARY_FILE="$RESULTS_DIR/trivy-summary.json"
 
 SCAN_TARGET=${1:-$SCRIPT_DIR/..}
 STAGE=${2:-1}
-SEVERITY_THRESHOLD=${3:-HIGH}
 
 mkdir -p "$RESULTS_DIR"
 
@@ -33,8 +32,15 @@ trivy fs \
 
 TRIVY_EXIT=$?
 
-if [ ! -f "$OUTPUT_FILE" ]; then
-    echo "[ERROR] Trivy output file not found: $OUTPUT_FILE"
+# Fail immediately if trivy execution error (exit 2+)
+if [ "$TRIVY_EXIT" -ge 2 ]; then
+    echo "[ERROR] Trivy execution failed with exit code $TRIVY_EXIT"
+    exit 1
+fi
+
+# Fail if output file missing or empty
+if [ ! -s "$OUTPUT_FILE" ]; then
+    echo "[ERROR] Trivy output file missing or empty"
     exit 1
 fi
 
@@ -58,8 +64,7 @@ try:
                 medium += 1
     print(f'{critical} {high} {medium}')
 except (json.JSONDecodeError, FileNotFoundError):
-    pass
-print('0 0 0')
+    print('0 0 0')
 " 2>/dev/null || echo '0 0 0')
 
 CRITICAL_COUNT=$(echo "$COUNTS" | awk '{print $1}')

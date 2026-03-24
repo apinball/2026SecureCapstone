@@ -51,9 +51,8 @@ elif [ "$GITLEAKS_EXIT" -eq 1 ]; then
     RESULT="fail"
     EXIT_CODE=1
 else
-    echo "[ERROR] Gitleaks failed with exit code $GITLEAKS_EXIT"
-    RESULT="fail"
-    EXIT_CODE=1
+    echo "[ERROR] Gitleaks execution failed with exit code $GITLEAKS_EXIT"
+    exit 1
 fi
 
 # Write summary JSON

@@ -36,6 +36,18 @@ fi
 
 SEMGREP_EXIT=$?
 
+# Fail immediately if semgrep execution error (exit 2+)
+if [ "$SEMGREP_EXIT" -ge 2 ]; then
+    echo "[ERROR] Semgrep execution failed with exit code $SEMGREP_EXIT"
+    exit 1
+fi
+
+# Fail if output file missing or empty
+if [ ! -s "$OUTPUT_FILE" ]; then
+    echo "[ERROR] Semgrep output file missing or empty"
+    exit 1
+fi
+
 # Check for rule schema errors
 SCHEMA_ERRORS=$(python3 -c "
 import json
@@ -66,8 +78,7 @@ try:
             warning_count += 1
     print(f'{error_count} {warning_count}')
 except (json.JSONDecodeError, FileNotFoundError):
-    pass
-print('0 0')
+    print('0 0')
 " 2>/dev/null || echo '0 0')
 
 ERROR_COUNT=$(echo "$COUNTS" | awk '{print $1}')

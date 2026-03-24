@@ -51,6 +51,14 @@ openssl s_client \
     -no_tls1 -no_tls1_1 \
     2>&1 </dev/null | tee "$TMPFILE"
 
+OPENSSL_EXIT=${PIPESTATUS[0]}
+
+# Fail if connection failed
+if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -q "Protocol version" "$TMPFILE"; then
+    echo "[ERROR] TLS connection to $HOST:$PORT failed"
+    exit 1
+fi
+
 echo ""
 
 # Parse negotiated values

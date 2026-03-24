@@ -44,12 +44,16 @@ else
 fi
 
 # Determine pass/fail
-if [ "$LEAK_COUNT" -gt 0 ]; then
+if [ "$GITLEAKS_EXIT" -eq 0 ]; then
+    RESULT="pass"
+    EXIT_CODE=0
+elif [ "$GITLEAKS_EXIT" -eq 1 ]; then
     RESULT="fail"
     EXIT_CODE=1
 else
-    RESULT="pass"
-    EXIT_CODE=0
+    echo "[ERROR] Gitleaks failed with exit code $GITLEAKS_EXIT"
+    RESULT="fail"
+    EXIT_CODE=1
 fi
 
 # Write summary JSON

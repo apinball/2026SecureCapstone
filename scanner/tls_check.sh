@@ -105,8 +105,10 @@ fi
 
 # Also fail if protocol is not TLS 1.3 for stage 2/3
 if [ "$STAGE_NUM" != "1" ] && [ "$PROTOCOL" != "TLSv1.3" ]; then
+    if [ "$RESULT" = "pass" ]; then
+        FAIL_REASON="Stage $STAGE_NUM policy violation: TLSv1.3 required but got $PROTOCOL"
+    fi
     RESULT="fail"
-    FAIL_REASON="Stage $STAGE_NUM policy violation: TLSv1.3 required but got $PROTOCOL"
 fi
 
 # Write summary JSON
@@ -136,4 +138,8 @@ else
     echo "[FAIL] $FAIL_REASON"
 fi
 
-exit $([ "$RESULT" = "pass" ] && echo 0 || echo 1)
+if [ "$RESULT" = "pass" ]; then
+    exit 0
+else
+    exit 1
+fi

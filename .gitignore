@@ -12,4 +12,5 @@ tester/captures/*.pcap
 **/certs/*.key
 **/certs/*.csr
 **/certs/*.srl
-**/certs/*.crtscanner/results/
+**/certs/*.crt
+scanner/results/

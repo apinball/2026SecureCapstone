@@ -25,7 +25,7 @@ echo ""
 # Run Trivy scan
 trivy fs \
     --scanners vuln,secret,misconfig \
-    --severity HIGH,CRITICAL \
+    --severity HIGH,CRITICAL,MEDIUM \
     --format json \
     --output "$OUTPUT_FILE" \
     --quiet \
@@ -39,41 +39,32 @@ if [ ! -f "$OUTPUT_FILE" ]; then
 fi
 
 # Parse result counts
-CRITICAL_COUNT=$(python3 -c "
+COUNTS=$(python3 -c "
 import json, sys
-with open('$OUTPUT_FILE') as f:
-    data = json.load(f)
-count = 0
-for r in data.get('Results', []):
-    for v in (r.get('Vulnerabilities') or []) + (r.get('Misconfigurations') or []):
-        if v.get('Severity') == 'CRITICAL':
-            count += 1
-print(count)
-" 2>/dev/null || echo 0)
+try:
+    with open('$OUTPUT_FILE') as f:
+        data = json.load(f)
+    critical = 0
+    high = 0
+    medium = 0
+    for r in data.get('Results', []):
+        for v in (r.get('Vulnerabilities') or []) + (r.get('Misconfigurations') or []):
+            sev = v.get('Severity')
+            if sev == 'CRITICAL':
+                critical += 1
+            elif sev == 'HIGH':
+                high += 1
+            elif sev == 'MEDIUM':
+                medium += 1
+    print(f'{critical} {high} {medium}')
+except (json.JSONDecodeError, FileNotFoundError):
+    pass
+print('0 0 0')
+" 2>/dev/null || echo '0 0 0')
 
-HIGH_COUNT=$(python3 -c "
-import json, sys
-with open('$OUTPUT_FILE') as f:
-    data = json.load(f)
-count = 0
-for r in data.get('Results', []):
-    for v in (r.get('Vulnerabilities') or []) + (r.get('Misconfigurations') or []):
-        if v.get('Severity') == 'HIGH':
-            count += 1
-print(count)
-" 2>/dev/null || echo 0)
-
-MEDIUM_COUNT=$(python3 -c "
-import json, sys
-with open('$OUTPUT_FILE') as f:
-    data = json.load(f)
-count = 0
-for r in data.get('Results', []):
-    for v in (r.get('Vulnerabilities') or []) + (r.get('Misconfigurations') or []):
-        if v.get('Severity') == 'MEDIUM':
-            count += 1
-print(count)
-" 2>/dev/null || echo 0)
+CRITICAL_COUNT=$(echo "$COUNTS" | awk '{print $1}')
+HIGH_COUNT=$(echo "$COUNTS" | awk '{print $2}')
+MEDIUM_COUNT=$(echo "$COUNTS" | awk '{print $3}')
 
 # Determine pass/fail
 if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 0 ]; then

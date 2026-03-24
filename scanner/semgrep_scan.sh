@@ -51,27 +51,27 @@ if [ "$SCHEMA_ERRORS" -gt 0 ]; then
 fi
 
 # Parse result counts
-ERROR_COUNT=$(python3 -c "
-import json
-with open('$OUTPUT_FILE') as f:
-    data = json.load(f)
-count = 0
-for r in data.get('results', []):
-    if r.get('extra', {}).get('severity', '').upper() == 'ERROR':
-        count += 1
-print(count)
-" 2>/dev/null || echo 0)
+COUNTS=$(python3 -c "
+import json, sys
+try:
+    with open('$OUTPUT_FILE') as f:
+        data = json.load(f)
+    error_count = 0
+    warning_count = 0
+    for r in data.get('results', []):
+        sev = r.get('extra', {}).get('severity', '').upper()
+        if sev == 'ERROR':
+            error_count += 1
+        elif sev == 'WARNING':
+            warning_count += 1
+    print(f'{error_count} {warning_count}')
+except (json.JSONDecodeError, FileNotFoundError):
+    pass
+print('0 0')
+" 2>/dev/null || echo '0 0')
 
-WARNING_COUNT=$(python3 -c "
-import json
-with open('$OUTPUT_FILE') as f:
-    data = json.load(f)
-count = 0
-for r in data.get('results', []):
-    if r.get('extra', {}).get('severity', '').upper() == 'WARNING':
-        count += 1
-print(count)
-" 2>/dev/null || echo 0)
+ERROR_COUNT=$(echo "$COUNTS" | awk '{print $1}')
+WARNING_COUNT=$(echo "$COUNTS" | awk '{print $2}')
 
 # Determine pass/fail
 if [ "$ERROR_COUNT" -gt 0 ]; then

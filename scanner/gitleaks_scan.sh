@@ -24,9 +24,9 @@ echo ""
 
 # Run gitleaks scan
 if [ -f "$CONFIG_FILE" ]; then
-    gitleaks git --config "$CONFIG_FILE" --report-format json --report-path "$OUTPUT_FILE" "$SCAN_TARGET"
+    gitleaks detect --source "$SCAN_TARGET" --config "$CONFIG_FILE" --report-format json --report-path "$OUTPUT_FILE"
 else
-    gitleaks git --report-format json --report-path "$OUTPUT_FILE" "$SCAN_TARGET"
+    gitleaks detect --source "$SCAN_TARGET" --report-format json --report-path "$OUTPUT_FILE"
 fi
 
 GITLEAKS_EXIT=$?

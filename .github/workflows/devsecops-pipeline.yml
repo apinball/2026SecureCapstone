@@ -80,7 +80,8 @@ jobs:
       - name: 6. CBOM 명세서 생성 및 리포팅
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
-          # 추후 추가: python policy/cbom_gen.py
+          mkdir -p artifacts
+          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json
 
       - name: 컨테이너 정리
         if: always()

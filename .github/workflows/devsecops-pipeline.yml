@@ -242,6 +242,27 @@ jobs:
           print('[DONE] CBOM에 마이그레이션 결과 통합 완료')
           "
 
+          # 이전 실행 CBOM 다운로드 후 마이그레이션 진척도 비교
+          PREV_CBOM="artifacts/prev_cbom.json"
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=cbom-stage${{ env.STAGE }}&per_page=1" \
+            --jq '.artifacts[] | select(.expired == false) | .id' 2>/dev/null | head -1 || true)
+
+          if [ -n "$ARTIFACT_ID" ]; then
+            echo "이전 CBOM 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
+            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
+              > /tmp/prev_cbom.zip 2>/dev/null && \
+              unzip -p /tmp/prev_cbom.zip > "$PREV_CBOM" 2>/dev/null || true
+          else
+            echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
+          fi
+
+          python policy/cbom_diff.py \
+            --current artifacts/cbom_stage${{ env.STAGE }}.json \
+            --previous "$PREV_CBOM" \
+            --out artifacts/cbom_stage${{ env.STAGE }}.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: CBOM 결과 업로드
         if: always()
         uses: actions/upload-artifact@v4

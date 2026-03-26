@@ -1,0 +1,102 @@
+rules:
+  # ── Python — 고전 암호 탐지 ──────────────────────────────────────────────
+
+  - id: python-rsa-usage
+    message: "RSA usage detected — consider migrating to ML-KEM (FIPS 203) for key encapsulation or ML-DSA (FIPS 204) for signatures"
+    languages: [python]
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: from Crypto.PublicKey import RSA
+          - pattern: from cryptography.hazmat.primitives.asymmetric import rsa
+          - pattern: rsa.generate_private_key(...)
+          - pattern: RSA.generate(...)
+
+  - id: python-md5-usage
+    message: "MD5 detected — cryptographically broken, use SHA-256 or higher"
+    languages: [python]
+    severity: ERROR
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.new("md5", ...)
+
+  - id: python-sha1-usage
+    message: "SHA-1 detected — deprecated for cryptographic use, use SHA-256 or higher"
+    languages: [python]
+    severity: WARNING
+    pattern-either:
+      - pattern: hashlib.sha1(...)
+      - pattern: hashlib.new("sha1", ...)
+
+  - id: python-des-usage
+    message: "DES/3DES detected — broken cipher, use AES-256"
+    languages: [python]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: from Crypto.Cipher import DES
+          - pattern: from Crypto.Cipher import DES3
+
+  - id: python-ecdsa-classical
+    message: "Classical ECDSA detected — consider ML-DSA (FIPS 204) for post-quantum signatures"
+    languages: [python]
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: from cryptography.hazmat.primitives.asymmetric import ec
+          - pattern: ec.generate_private_key(...)
+
+  # ── Java — 고전 암호 탐지 ────────────────────────────────────────────────
+
+  - id: java-rsa-keygen
+    message: "RSA KeyPairGenerator detected — consider post-quantum alternatives (ML-KEM, ML-DSA)"
+    languages: [java]
+    severity: WARNING
+    pattern: KeyPairGenerator.getInstance("RSA")
+
+  - id: java-md5-digest
+    message: "MD5 MessageDigest detected — cryptographically broken, use SHA-256"
+    languages: [java]
+    severity: ERROR
+    pattern: MessageDigest.getInstance("MD5")
+
+  - id: java-sha1-digest
+    message: "SHA-1 MessageDigest detected — deprecated, use SHA-256 or higher"
+    languages: [java]
+    severity: WARNING
+    pattern: MessageDigest.getInstance("SHA-1")
+
+  - id: java-des-cipher
+    message: "DES/3DES Cipher detected — broken, use AES-256"
+    languages: [java]
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: Cipher.getInstance("DES")
+          - pattern: Cipher.getInstance("DESede")
+
+  - id: java-ecdsa-classical
+    message: "Classical ECDSA detected — consider post-quantum signature schemes"
+    languages: [java]
+    severity: WARNING
+    pattern: KeyPairGenerator.getInstance("EC")
+
+  # ── 범용 — 설정 파일 고전 암호 탐지 ────────────────────────────────────────
+
+  - id: generic-rsa-key-size-weak
+    message: "RSA key size 1024/2048 detected — minimum 3072 recommended, or migrate to ML-KEM"
+    languages: [generic]
+    severity: WARNING
+    pattern-either:
+      - pattern: RSA ... 1024 ...
+      - pattern: RSA ... 2048 ...
+
+  - id: generic-md5-in-config
+    message: "MD5 reference detected in config — replace with SHA-256 or higher"
+    languages: [generic]
+    severity: ERROR
+    patterns:
+      - pattern: $KEY = ... md5 ...
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: ".*(hash|digest|algo|cipher).*"

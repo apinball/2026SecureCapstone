@@ -132,22 +132,15 @@ jobs:
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
             . || true
 
-          # 탐지 결과 요약 출력
-          python3 -c "
-          import json
-          try:
-              with open('artifacts/crypto-findings.json') as f:
-                  data = json.load(f)
-              results = data.get('results', [])
-              if results:
-                  print(f'[WARN] 고전 암호 사용 {len(results)}건 탐지 — CBOM 리포트 참조')
-                  for r in results:
-                      print(f\"  [{r['extra']['severity']}] {r['path']}:{r['start']['line']} — {r['check_id']}\")
-              else:
-                  print('[OK] 고전 암호 패턴 탐지 없음')
-          except Exception as e:
-              print(f'[INFO] 탐지 결과 없음: {e}')
-          "
+          # 탐지 결과 요약 출력 및 차단
+          FINDINGS_COUNT=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          if [ "$FINDINGS_COUNT" -gt 0 ]; then
+            echo "[FATAL] 고전 암호 사용 ${FINDINGS_COUNT}건 탐지 — 파이프라인 차단"
+            jq -r '.results[] | "  [\(.extra.severity)] \(.path):\(.start.line) — \(.check_id)"' artifacts/crypto-findings.json
+            exit 1
+          else
+            echo "[OK] 고전 암호 패턴 탐지 없음"
+          fi
 
       - name: 6. 정적 보안 분석 (SAST & Secret & CVE)
         run: |
@@ -269,13 +262,6 @@ jobs:
             --previous "$PREV_CBOM" \
             --out artifacts/cbom_stage${{ env.STAGE }}.json
 
-          # REGRESSED 시 파이프라인 차단 — 새로운 레거시 암호 추가됨
-          PROGRESS_STATUS=$(jq -r '.migration_progress.status // "UNKNOWN"' "artifacts/cbom_stage${{ env.STAGE }}.json" 2>/dev/null || echo "UNKNOWN")
-          if [ "$PROGRESS_STATUS" = "REGRESSED" ]; then
-            echo "[FATAL] 새로운 레거시 암호 사용이 감지되었습니다 (REGRESSED) — 파이프라인 차단."
-            echo "  CBOM classical_crypto_findings 확인 후 PQC 대체 또는 예외 처리 필요."
-            exit 1
-          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

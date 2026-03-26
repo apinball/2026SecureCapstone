@@ -41,7 +41,6 @@ rules:
     severity: WARNING
     patterns:
       - pattern: ssl_ecdh_curve $CURVE;
-      - metavariable-regex:
-          metavariable: $CURVE
-          regex: "^(prime256v1|secp384r1|secp521r1|X25519|x25519)$"
+      - pattern-not: ssl_ecdh_curve ... mlkem ...
+      - pattern-not: ssl_ecdh_curve ... MLKEM ...
     fix: "ssl_ecdh_curve X25519MLKEM768:X25519;"

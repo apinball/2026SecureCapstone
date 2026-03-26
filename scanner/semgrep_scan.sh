@@ -22,9 +22,10 @@ echo "Target : $SCAN_TARGET"
 echo "Stage  : $STAGE"
 echo ""
 
-# Run semgrep scan
-if [ -d "$RULES_DIR" ] && [ "$(ls -A $RULES_DIR)" ]; then
-    semgrep --config "$RULES_DIR" --json --output "$OUTPUT_FILE" --quiet --exclude "*.yaml" --exclude "*.toml" "$SCAN_TARGET"
+# Run semgrep scan (crypto-classical.yaml only — tls-policy.yaml은 Security Gate Step에서 별도 실행)
+CRYPTO_RULES="$RULES_DIR/crypto-classical.yaml"
+if [ -f "$CRYPTO_RULES" ]; then
+    semgrep --config "$CRYPTO_RULES" --json --output "$OUTPUT_FILE" --quiet --exclude "*.yaml" --exclude "*.toml" "$SCAN_TARGET"
 else
     echo "[WARN] No rules found in $RULES_DIR, skipping scan."
     python3 -c "

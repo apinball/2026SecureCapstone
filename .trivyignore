@@ -1,0 +1,16 @@
+# ============================================================
+# .trivyignore — Trivy 억제 목록
+# 각 항목은 근거와 함께 명시
+# ============================================================
+
+# DS-0002: nginx/Dockerfile — USER root
+# openquantumsafe/nginx 베이스 이미지는 port 443 바인딩 및
+# apk 패키지 설치(openssl), 인증서 생성에 root 권한이 필요.
+# PQC TLS 프록시의 구조적 요구사항으로 비루트 전환 불가.
+DS002
+
+# DS-0001: nginx/Dockerfile, tester/Dockerfile — :latest 태그
+# openquantumsafe/nginx, openquantumsafe/curl 이미지는
+# OQS 프로젝트에서 latest 외 안정적인 버전 태그를 제공하지 않음.
+# 프로젝트 특성상 최신 PQC 알고리즘 지원 버전을 유지해야 함.
+DS001

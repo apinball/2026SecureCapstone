@@ -26,20 +26,8 @@ jobs:
       - name: 1. 저장소 코드 가져오기
         uses: actions/checkout@v4
 
-      - name: 2. 정적 보안 분석 (SAST & Secret)
+      - name: 2. Stage 설정 및 nginx.conf 준비
         run: |
-          echo "진행 중: 코드 내 하드코딩된 키 및 취약점 스캔..."
-          # 추후 추가: python policy/sast_scan.py
-
-      - name: 3. TLS 암호 정책 검증 (Security Gate)
-        run: |
-          echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
-          # 추후 추가: bash policy/check_tls_policy.sh
-          # 실패 시 파이프라인 여기서 강제 종료 (exit 1)
-
-      - name: 4. PQC Nginx 도커 빌드 및 가동
-        run: |
-          # workflow_dispatch 시 선택한 Stage로 nginx.conf 교체
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             STAGE="${{ github.event.inputs.stage }}"
             if [ "$STAGE" = "1" ]; then
@@ -65,6 +53,43 @@ jobs:
           fi
           echo "STAGE=$STAGE" >> $GITHUB_ENV
 
+      - name: 3. 정적 보안 분석 (SAST & Secret)
+        run: |
+          echo "진행 중: 코드 내 하드코딩된 키 및 취약점 스캔..."
+
+          # Semgrep 설치
+          pip install --quiet semgrep
+
+          # Trivy 설치
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+          # Gitleaks 설치 (v8.21.2)
+          GITLEAKS_VERSION="8.21.2"
+          curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+
+          mkdir -p artifacts
+          bash scanner/run_scanners.sh . ${{ env.STAGE }}
+          cp scanner/results/scan-summary.json artifacts/scan-summary.json
+
+      - name: 스캔 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-stage${{ env.STAGE }}
+          path: |
+            scanner/results/
+            artifacts/scan-summary.json
+
+      - name: 4. TLS 암호 정책 검증 (Security Gate)
+        run: |
+          echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
+          semgrep --config scanner/rules/tls-policy.yaml nginx/ --error --quiet
+          echo "[PASS] TLS 정책 검증 통과 — 취약 프로토콜/암호 없음"
+
+      - name: 5. PQC Nginx 도커 빌드 및 가동
+        run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
           docker compose build
           docker compose up -d
@@ -72,16 +97,23 @@ jobs:
           sleep 15
           docker compose ps
 
-      - name: 5. 배포 후 동적 검증 (TLS 협상 확인)
+      - name: 6. 배포 후 동적 검증 (TLS 협상 확인)
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
           docker exec tls-tester verify_tls.sh proxy-server 443 ${{ env.STAGE }}
 
-      - name: 6. CBOM 명세서 생성 및 리포팅
+      - name: 7. CBOM 명세서 생성 및 리포팅
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
           mkdir -p artifacts
           python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+      - name: CBOM 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbom-stage${{ env.STAGE }}
+          path: artifacts/cbom_stage${{ env.STAGE }}.json
 
       - name: 컨테이너 정리
         if: always()

@@ -133,12 +133,12 @@ jobs:
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
             . || true
 
-          # 탐지 결과 요약 출력 및 차단
+          # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)
           FINDINGS_COUNT=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          echo "FINDINGS_COUNT=${FINDINGS_COUNT}" >> $GITHUB_ENV
           if [ "$FINDINGS_COUNT" -gt 0 ]; then
-            echo "[FATAL] 고전 암호 사용 ${FINDINGS_COUNT}건 탐지 — 파이프라인 차단"
+            echo "[WARN] 고전 암호 사용 ${FINDINGS_COUNT}건 탐지 — Step 6 완료 후 차단 판정"
             jq -r '.results[] | "  [\(.extra.severity)] \(.path):\(.start.line) — \(.check_id)"' artifacts/crypto-findings.json
-            exit 1
           else
             echo "[OK] 고전 암호 패턴 탐지 없음"
           fi
@@ -159,10 +159,22 @@ jobs:
           bash scanner/run_scanners.sh . ${{ env.STAGE }} || true
           cp scanner/results/scan-summary.json artifacts/scan-summary.json
 
-          # Gitleaks 결과 별도 확인 — 시크릿 탐지 시 파이프라인 차단
+          # 종합 보안 판정 — Gitleaks + 레거시 암호
           GITLEAKS_RESULT=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          BLOCK=false
+
           if [ "$GITLEAKS_RESULT" = "fail" ]; then
-            echo "[FATAL] 시크릿 탐지 — 하드코딩된 키/토큰이 감지되었습니다. 파이프라인 차단."
+            echo "[FATAL] 시크릿 탐지 — 하드코딩된 키/토큰이 감지되었습니다."
+            BLOCK=true
+          fi
+
+          if [ "${FINDINGS_COUNT:-0}" -gt 0 ]; then
+            echo "[FATAL] 고전 암호 사용 ${FINDINGS_COUNT}건 — PQC 마이그레이션 필요."
+            BLOCK=true
+          fi
+
+          if [ "$BLOCK" = "true" ]; then
+            echo "파이프라인 차단."
             exit 1
           fi
 

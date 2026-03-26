@@ -68,42 +68,52 @@ jobs:
           echo " PQC Auto-Migration — nginx TLS 설정 검사"
           echo "========================================"
 
-          # autofix 실행 (nginx 설정 파일만 대상)
-          semgrep --config scanner/rules/tls-policy.yaml \
-            --autofix \
-            --quiet \
-            nginx/
+          MIGRATED=false
 
-          # 변경사항 확인
-          if ! git diff --quiet nginx/nginx.conf nginx/nginx-ecc.conf nginx/nginx-hybrid.conf nginx/nginx-pq.conf 2>/dev/null; then
-            echo "[MIGRATION] 취약 TLS 설정 감지 — PQC 설정으로 자동 수정됨"
-            git diff nginx/
+          # PQC 키교환(mlkem) 미포함 → Classical TLS 판정 → 마이그레이션
+          if ! grep -qiE "mlkem" nginx/nginx.conf; then
+            echo "[MIGRATION] Classical TLS 감지 (PQC 키교환 없음)"
+            echo "  ssl_ecdh_curve: $(grep ssl_ecdh_curve nginx/nginx.conf || echo '미설정')"
+            echo "  → Hybrid PQC (X25519MLKEM768)로 자동 마이그레이션"
+            cp nginx/nginx-hybrid.conf nginx/nginx.conf
+            MIGRATED=true
+          fi
 
+          # 약한 프로토콜(TLSv1.0/1.1) 감지 → TLSv1.3으로 수정
+          if grep -qE "TLSv1(\s|;|$)" nginx/nginx.conf || grep -q "TLSv1\.1" nginx/nginx.conf; then
+            echo "[MIGRATION] TLSv1.0/1.1 감지 → TLSv1.3으로 자동 수정"
+            sed -i 's/ssl_protocols.*/ssl_protocols TLSv1.3;/' nginx/nginx.conf
+            MIGRATED=true
+          fi
+
+          if [ "$MIGRATED" = "true" ]; then
             # 수정된 Stage 재감지
             if grep -q "p521_mlkem\|p384_mlkem" nginx/nginx.conf; then
               NEW_STAGE=3
-            elif grep -q "X25519MLKEM768\|x25519_mlkem" nginx/nginx.conf; then
+            elif grep -qiE "mlkem" nginx/nginx.conf; then
               NEW_STAGE=2
             else
               NEW_STAGE=1
             fi
 
+            echo ""
+            echo "마이그레이션 결과:"
+            grep -E "ssl_protocols|ssl_ecdh_curve" nginx/nginx.conf
+
             # 자동 커밋 & push
             git config user.name "PQC Migration Bot"
             git config user.email "pqc-bot@github-actions.com"
-            git add nginx/
-            git commit -m "Auto-migrate: TLS 설정 PQC 자동 마이그레이션 [skip ci]
+            git add nginx/nginx.conf
+            git commit -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]
 
-            파이프라인이 취약 TLS 설정을 감지하여 자동 수정했습니다.
-            - 약한 프로토콜(TLSv1.0/1.1) → TLSv1.3
-            - 고전 키교환(ECC) → Hybrid PQC (X25519MLKEM768)
-            Stage: ${{ env.STAGE }} → ${NEW_STAGE}"
+            파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여
+            Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
             git push origin HEAD:${{ github.ref_name }}
 
             echo "STAGE=${NEW_STAGE}" >> $GITHUB_ENV
             echo "[DONE] Stage ${NEW_STAGE}로 마이그레이션 완료"
           else
-            echo "[OK] nginx TLS 설정에 취약점 없음 — 마이그레이션 불필요"
+            echo "[OK] PQC 설정 확인 — 마이그레이션 불필요"
           fi
 
       - name: 5. 고전 암호 탐지 (코드 전체)

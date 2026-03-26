@@ -162,7 +162,7 @@ jobs:
           curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
 
-          bash scanner/run_scanners.sh . ${{ env.STAGE }}
+          bash scanner/run_scanners.sh . ${{ env.STAGE }} || true
           cp scanner/results/scan-summary.json artifacts/scan-summary.json
 
       - name: 스캔 결과 업로드

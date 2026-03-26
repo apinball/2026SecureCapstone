@@ -22,6 +22,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   pqc-migration-pipeline:
@@ -271,6 +272,94 @@ jobs:
         with:
           name: cbom-stage${{ env.STAGE }}-run${{ github.run_number }}
           path: artifacts/cbom_stage${{ env.STAGE }}.json
+
+      - name: 파이프라인 실행 요약 (Job Summary)
+        if: always()
+        run: |
+          STAGE="${{ env.STAGE }}"
+          TRIVY=$(jq -r '.tools.trivy // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          PROGRESS=$(jq -r '.migration_progress.status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          MANUAL=$(jq -r '.migration_summary.manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+
+          icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
+
+          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
+          ## DevSecOps PQC Pipeline — Stage ${STAGE}
+
+          ### 스캔 결과
+          | 도구 | 결과 |
+          |------|------|
+          | Trivy (CVE) | $(icon $TRIVY) ${TRIVY} |
+          | Gitleaks (Secrets) | $(icon $GITLEAKS) ${GITLEAKS} |
+          | Semgrep (SAST) | $(icon $SEMGREP) ${SEMGREP} |
+
+          ### 레거시 암호 탐지
+          - 탐지 건수: **${FINDINGS}건**
+
+          ### CBOM 마이그레이션
+          - 수동 조치 필요: **${MANUAL}건**
+          - 진척도: **${PROGRESS}**
+          SUMMARY
+
+      - name: PR 보안 리포트 코멘트
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          STAGE: ${{ env.STAGE }}
+        with:
+          script: |
+            const fs = require('fs');
+            const stage = process.env.STAGE || '?';
+
+            let trivy = 'unknown', gitleaks = 'unknown', semgrep = 'unknown';
+            try {
+              const s = JSON.parse(fs.readFileSync('scanner/results/scan-summary.json', 'utf8'));
+              trivy = s.tools?.trivy || 'unknown';
+              gitleaks = s.tools?.gitleaks || 'unknown';
+              semgrep = s.tools?.semgrep || 'unknown';
+            } catch(e) {}
+
+            let findings = 0, progress = 'N/A', manual = 'N/A';
+            try {
+              const cbom = JSON.parse(fs.readFileSync(`artifacts/cbom_stage${stage}.json`, 'utf8'));
+              findings = cbom.classical_crypto_findings?.length || 0;
+              progress = cbom.migration_progress?.status || 'N/A';
+              manual = cbom.migration_summary?.manual_action_required ?? 'N/A';
+            } catch(e) {}
+
+            const icon = (r) => r === 'pass' ? '✅' : r === 'fail' ? '❌' : '⚠️';
+            const pIcon = (s) => ({ IMPROVED: '📈', REGRESSED: '📉', BASELINE: '🔰' }[s] || '➡️');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              `## 🔐 PQC Pipeline 보안 리포트 — Stage ${stage}`,
+              '',
+              '### 스캔 결과',
+              '| 도구 | 결과 |',
+              '|------|------|',
+              `| Trivy (CVE) | ${icon(trivy)} ${trivy} |`,
+              `| Gitleaks (Secrets) | ${icon(gitleaks)} ${gitleaks} |`,
+              `| Semgrep (SAST) | ${icon(semgrep)} ${semgrep} |`,
+              '',
+              '### 레거시 암호 탐지',
+              `- 탐지 건수: **${findings}건**`,
+              '',
+              '### CBOM 마이그레이션 진척도',
+              `- 수동 조치 필요: **${manual}건**`,
+              `- 상태: ${pIcon(progress)} **${progress}**`,
+              '',
+              `> 🤖 [Actions 실행 결과 보기](${runUrl})`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
 
       - name: 파이프라인 실패 시 GitHub Issue 생성
         if: failure()

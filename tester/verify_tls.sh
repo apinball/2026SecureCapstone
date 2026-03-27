@@ -17,7 +17,7 @@ if [ "$STAGE" = "1" ] || [ "$STAGE" = "ecc" ]; then
 elif [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ]; then
     CURVES="X25519MLKEM768:x25519"
 elif [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
-    CURVES="p521_mlkem1024:p384_mlkem768"
+    CURVES="X25519MLKEM768"
 else
     CURVES=""
 fi
@@ -50,19 +50,34 @@ echo "Cipher   : ${CIPHER:-Unknown}"
 echo "Key Group: ${GROUP:-Unknown}"
 echo ""
 
-# 판정 로직 (X25519 기반 = Stage 2, P-curve 기반 = Stage 3)
 GROUP_LOWER=$(echo "$GROUP" | tr '[:upper:]' '[:lower:]')
 
-if [[ "$GROUP_LOWER" == *"mlkem"* ]]; then
-    if [[ "$GROUP_LOWER" == *"x25519"* ]]; then
-        echo "판정: Stage 2 - Hybrid PQC-TLS ✓"
+if [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
+    # Stage 3: PQC 연결 성공 확인 후 클래식 폴백 차단 검증
+    if [[ "$GROUP_LOWER" == *"mlkem"* ]]; then
+        echo "판정: PQC 연결 성공 ✓"
+        echo "검증 중: 클래식 전용 클라이언트 차단 여부..."
+        CLASSIC_RESULT=$(curl -k --connect-timeout 5 --curves "x25519:prime256v1" \
+            https://"$HOST":"$PORT"/ 2>&1)
+        if echo "$CLASSIC_RESULT" | grep -q "handshake failure\|SSL"; then
+            echo "판정: Stage 3 - PQC 강제 적용 ✓ (클래식 폴백 차단 확인)"
+        else
+            echo "[!] 경고: 클래식 클라이언트도 연결됨 — 폴백 차단 미확인"
+            exit 1
+        fi
     else
-        # p521_mlkem1024, p384_mlkem768 등 P-curve + MLKEM
-        echo "판정: Stage 3 - Post-Quantum TLS ✓"
+        echo "[!] 오류: PQC TLS 연결이 필요하지만 협상에 실패했습니다."
+        exit 1
+    fi
+elif [[ "$GROUP_LOWER" == *"mlkem"* ]]; then
+    echo "판정: Stage 2 - Hybrid PQC-TLS ✓"
+    if [ "$STAGE" = "1" ] || [ "$STAGE" = "ecc" ]; then
+        echo "[!] 오류: Classical TLS가 필요하지만 PQC가 협상되었습니다."
+        exit 1
     fi
 else
     echo "판정: Stage 1 - Classical TLS (ECC) - PQC 미적용"
-    if [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ] || [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
+    if [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ]; then
         echo "[!] 오류: PQC TLS 연결이 필요하지만 협상에 실패했습니다."
         exit 1
     fi

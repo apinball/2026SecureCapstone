@@ -2,7 +2,7 @@ FROM openquantumsafe/nginx
 
 USER root
 
-# openssl 설치 및 인증서 자동 생성 (빌드 시 1회)
+# RSA 인증서 생성 (Stage 1 ECC / Stage 2 Hybrid 공용)
 RUN apk add --no-cache openssl && \
     mkdir -p /etc/nginx/certs && \
     openssl req -x509 -newkey rsa:2048 -days 365 \
@@ -17,6 +17,12 @@ COPY nginx-ecc.conf /opt/nginx/nginx-conf/nginx-ecc.conf
 COPY nginx-hybrid.conf /opt/nginx/nginx-conf/nginx-hybrid.conf
 COPY nginx-pq.conf /opt/nginx/nginx-conf/nginx-pq.conf
 
+COPY entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# 기본 Stage: 1 (ECC)
+ENV TLS_STAGE=1
+
 EXPOSE 80 443
 
-CMD ["nginx", "-c", "/opt/nginx/nginx-conf/nginx.conf", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

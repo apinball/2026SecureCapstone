@@ -1,0 +1,46 @@
+#!/bin/bash
+# gen-certs.sh — TLS 인증서 생성 스크립트
+#
+# Stage 1/2: RSA-2048 인증서 (시스템 openssl)
+# Stage 3:   Dilithium3 인증서 (OQS-OpenSSL, Docker 필요)
+#
+# 사용법: bash nginx/gen-certs.sh
+# 생성 위치: /etc/nginx/certs/ (컨테이너 내부) → 빌드 시 자동 생성됨
+#            로컬 테스트용: nginx/certs/
+
+set -e
+
+CERTS_DIR="$(cd "$(dirname "$0")" && pwd)/certs"
+mkdir -p "$CERTS_DIR"
+
+# ─────────────────────────────────────────────────────────
+# Stage 1 & 2 공용: RSA-2048 인증서
+# ─────────────────────────────────────────────────────────
+echo "=== [1/2] RSA-2048 인증서 생성 (Stage 1 ECC / Stage 2 Hybrid 공용) ==="
+openssl req -x509 -newkey rsa:2048 -days 365 \
+  -keyout "$CERTS_DIR/server.key" \
+  -out    "$CERTS_DIR/server.crt" \
+  -subj "/C=KR/O=QuantumJump/CN=localhost" \
+  -nodes
+echo "    → server.key / server.crt 생성 완료"
+
+# ─────────────────────────────────────────────────────────
+# Stage 3 전용: Dilithium3 인증서 (OQS-OpenSSL via Docker)
+# ─────────────────────────────────────────────────────────
+echo "=== [2/2] Dilithium3 인증서 생성 (Stage 3 PQ-only 전용) ==="
+docker run --rm \
+  -v "$CERTS_DIR:/certs" \
+  openquantumsafe/oqs-ossl3:latest \
+  sh -c "
+    openssl req -x509 -newkey dilithium3 \
+      -keyout /certs/dilithium3.key \
+      -out    /certs/dilithium3.crt \
+      -days 365 -nodes \
+      -subj '/C=KR/O=QuantumJump/CN=localhost'
+    chmod 644 /certs/dilithium3.key /certs/dilithium3.crt
+  "
+echo "    → dilithium3.key / dilithium3.crt 생성 완료"
+
+echo ""
+echo "=== 완료 ==="
+ls -la "$CERTS_DIR"

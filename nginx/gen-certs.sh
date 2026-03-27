@@ -37,7 +37,7 @@ docker run --rm \
       -out    /certs/dilithium3.crt \
       -days 365 -nodes \
       -subj '/C=KR/O=QuantumJump/CN=localhost'
-    chmod 644 /certs/dilithium3.key /certs/dilithium3.crt
+    chmod 600 /certs/dilithium3.key; chmod 644 /certs/dilithium3.crt
   "
 echo "    → dilithium3.key / dilithium3.crt 생성 완료"
 

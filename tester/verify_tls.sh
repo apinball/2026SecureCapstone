@@ -17,7 +17,7 @@ if [ "$STAGE" = "1" ] || [ "$STAGE" = "ecc" ]; then
 elif [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ]; then
     CURVES="X25519MLKEM768:x25519"
 elif [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
-    CURVES="p521_mlkem1024:p384_mlkem768"
+    CURVES="X25519MLKEM768"
 else
     CURVES=""
 fi

@@ -1,5 +1,7 @@
 services:
-  # 1. Nginx Proxy
+  # 1. Nginx Proxy (OQS-nginx)
+  # TLS_STAGE: 1(ecc) | 2(hybrid) | 3(pq)  — 기본값 1
+  # 예시: TLS_STAGE=2 docker compose up --build
   proxy-server:
     build: ./nginx
     container_name: pqc-proxy

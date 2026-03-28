@@ -1,4 +1,0 @@
-docker compose up -d  // 개발용
-docker-compose -f docker-compose.prod.yml up -d --build // 배포용
-docker exec -it tls-tester /bin/bash  // 칼리 리눅스 내부 터미널 접속
-curl -v http://proxy-server  // Ngnix로 찔러보기

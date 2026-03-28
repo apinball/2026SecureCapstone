@@ -89,12 +89,15 @@ def print_summary(progress):
 
         print(f"  이전: {prev}건 → 현재: {curr}건")
 
+        resolved_count = progress.get("resolved_count", 0)
+        new_count = progress.get("new_count", 0)
+
         if status == "IMPROVED":
-            print(f"[IMPROVED] {delta}건 해결됨")
+            print(f"[IMPROVED] 해결 {resolved_count}건 / 신규 {new_count}건 (전체 {delta}건 감소)")
         elif status == "REGRESSED":
-            print(f"[REGRESSED] {abs(delta)}건 증가 — 새로운 레거시 암호 사용 감지")
+            print(f"[REGRESSED] 해결 {resolved_count}건 / 신규 {new_count}건 (전체 {abs(delta)}건 증가)")
         else:
-            print(f"[UNCHANGED] 변화 없음")
+            print(f"[UNCHANGED] 해결 {resolved_count}건 / 신규 {new_count}건 (변화 없음)")
 
         if progress.get("resolved"):
             print(f"  해결된 항목 ({progress['resolved_count']}건):")

@@ -27,7 +27,7 @@ case "${TLS_STAGE:-1}" in
     rm -f "$CONF_DIR/nginx.conf" && cp "$CONF_DIR/nginx-pq.conf" "$CONF_DIR/nginx.conf"
     ;;
   *)
-    echo "[entrypoint] 오류: TLS_STAGE=${TLS_STAGE} 는 유효하지 않습니다. {1|ecc|2|hybrid|3|pq}"
+    echo "[entrypoint] 오류: TLS_STAGE=${TLS_STAGE} 는 유효하지 않습니다. {1|ecc|2|hybrid|3|pq}" >&2
     exit 1
     ;;
 esac

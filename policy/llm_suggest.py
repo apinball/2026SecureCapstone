@@ -42,7 +42,7 @@ def call_gemini(api_key, prompt, retries=3, wait=60):
     url = GEMINI_URL.format(api_key=api_key)
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.1},
+        "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.1},
     }).encode("utf-8")
 
     for attempt in range(1, retries + 1):

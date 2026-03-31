@@ -197,8 +197,8 @@ jobs:
       - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
-          docker compose build
-          docker compose up -d
+          TLS_STAGE=${{ env.STAGE }} docker compose build
+          TLS_STAGE=${{ env.STAGE }} docker compose up -d
           echo "서비스 시작 대기 중 (15초)..."
           sleep 15
           docker compose ps

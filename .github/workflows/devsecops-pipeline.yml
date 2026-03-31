@@ -286,6 +286,23 @@ jobs:
           name: cbom-stage${{ env.STAGE }}-run${{ github.run_number }}
           path: artifacts/cbom_stage${{ env.STAGE }}.json
 
+      - name: LLM PQC 마이그레이션 제안 생성
+        if: always()
+        run: |
+          if [ -f "artifacts/crypto-findings.json" ]; then
+            FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+            if [ "$FINDINGS" -gt 0 ]; then
+              echo "[INFO] ${FINDINGS}건 탐지 — Gemini API 제안 생성 중..."
+              python policy/llm_suggest.py \
+                --findings artifacts/crypto-findings.json \
+                --out artifacts/llm-suggestions.md
+            else
+              echo "[OK] 탐지 없음 — 제안 생성 건너뜀"
+            fi
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: 파이프라인 실행 요약 (Job Summary)
         if: always()
         run: |
@@ -317,6 +334,10 @@ jobs:
           - 진척도: **${PROGRESS}**
           SUMMARY
 
+          if [ -f "artifacts/llm-suggestions.md" ]; then
+            cat artifacts/llm-suggestions.md >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: PR 보안 리포트 코멘트
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -347,6 +368,11 @@ jobs:
             const pIcon = (s) => ({ IMPROVED: '📈', REGRESSED: '📉', BASELINE: '🔰' }[s] || '➡️');
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
+            let llmSuggestions = '';
+            try {
+              llmSuggestions = fs.readFileSync('artifacts/llm-suggestions.md', 'utf8');
+            } catch(e) {}
+
             const body = [
               `## 🔐 PQC Pipeline 보안 리포트 — Stage ${stage}`,
               '',
@@ -364,6 +390,7 @@ jobs:
               `- 수동 조치 필요: **${manual}건**`,
               `- 상태: ${pIcon(progress)} **${progress}**`,
               '',
+              ...(llmSuggestions ? [llmSuggestions, ''] : []),
               `> 🤖 [Actions 실행 결과 보기](${runUrl})`,
             ].join('\n');
 

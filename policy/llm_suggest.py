@@ -54,8 +54,6 @@ def call_gemini(api_key, prompt, retries=3, wait=60):
                 result = json.loads(resp.read().decode("utf-8"))
                 return result["candidates"][0]["content"]["parts"][0]["text"]
         except urllib.error.HTTPError as e:
-            body_msg = e.read().decode("utf-8", errors="replace")
-            print(f"  [DEBUG] HTTP {e.code}: {body_msg[:500]}")
             if e.code == 429 and attempt < retries:
                 print(f"  [WARN] Rate limit — {wait}초 후 재시도 ({attempt}/{retries})")
                 time.sleep(wait)
@@ -106,16 +104,6 @@ def main():
     if not api_key:
         print("[ERROR] GEMINI_API_KEY 환경변수가 설정되지 않았습니다.", file=sys.stderr)
         sys.exit(1)
-
-    # 디버그: 사용 가능한 모델 목록 출력
-    try:
-        list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-        with urllib.request.urlopen(list_url, timeout=10) as r:
-            models = json.loads(r.read())
-            names = [m["name"] for m in models.get("models", [])]
-            print(f"[DEBUG] 사용 가능한 모델: {names[:5]}")
-    except Exception as e:
-        print(f"[DEBUG] 모델 목록 조회 실패: {e}")
 
     try:
         with open(args.findings, encoding="utf-8") as f:

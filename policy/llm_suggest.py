@@ -22,8 +22,8 @@ import urllib.error
 
 
 GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-1.5-flash:generateContent?key={api_key}"
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-1.5-flash-latest:generateContent?key={api_key}"
 )
 
 

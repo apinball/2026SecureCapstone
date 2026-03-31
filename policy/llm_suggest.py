@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 
@@ -118,6 +119,9 @@ def main():
         except Exception as e:
             print(f"  [WARN] API 호출 실패: {e}")
             suggestion = f"API 호출 실패: {e}"
+
+        if i < len(results):
+            time.sleep(3)
 
         suggestions.append({
             "file": path,

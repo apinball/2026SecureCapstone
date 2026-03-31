@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 
@@ -37,19 +38,27 @@ def read_code_context(file_path, line, context=5):
         return "(코드를 읽을 수 없습니다)"
 
 
-def call_gemini(api_key, prompt):
+def call_gemini(api_key, prompt, retries=3, wait=60):
     url = GEMINI_URL.format(api_key=api_key)
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.1},
     }).encode("utf-8")
 
-    req = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        result = json.loads(resp.read().decode("utf-8"))
-        return result["candidates"][0]["content"]["parts"][0]["text"]
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(
+            url, data=body, headers={"Content-Type": "application/json"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < retries:
+                print(f"  [WARN] Rate limit — {wait}초 후 재시도 ({attempt}/{retries})")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def generate_suggestions_batch(api_key, results):

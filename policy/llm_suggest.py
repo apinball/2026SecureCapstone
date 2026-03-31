@@ -54,6 +54,8 @@ def call_gemini(api_key, prompt, retries=3, wait=60):
                 result = json.loads(resp.read().decode("utf-8"))
                 return result["candidates"][0]["content"]["parts"][0]["text"]
         except urllib.error.HTTPError as e:
+            body_msg = e.read().decode("utf-8", errors="replace")
+            print(f"  [DEBUG] HTTP {e.code}: {body_msg[:500]}")
             if e.code == 429 and attempt < retries:
                 print(f"  [WARN] Rate limit — {wait}초 후 재시도 ({attempt}/{retries})")
                 time.sleep(wait)

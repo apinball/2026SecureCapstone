@@ -77,7 +77,7 @@ For each finding, provide a concise PQC migration suggestion in Korean:
 3. 대체 코드 예시 (코드는 영어로)
 
 Format each response as:
-### [{number}] <rule_id>
+### [{{number}}] <rule_id>
 <suggestion>
 
 Keep each suggestion concise and practical."""

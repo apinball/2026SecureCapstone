@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 import sys
-import time
 import urllib.request
 import urllib.error
 
@@ -53,25 +52,35 @@ def call_gemini(api_key, prompt):
         return result["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def generate_suggestion(api_key, finding, code_context):
+def generate_suggestions_batch(api_key, results):
+    """모든 findings를 단일 API 호출로 처리"""
+    items = []
+    for i, r in enumerate(results, 1):
+        code_context = read_code_context(r["path"], r["start"]["line"])
+        items.append(
+            f"[{i}] File: {r['path']} Line: {r['start']['line']}\n"
+            f"Rule: {r['check_id']} — {r['extra']['message']}\n"
+            f"Code:\n```\n{code_context}\n```"
+        )
+
+    findings_text = "\n\n".join(items)
+
     prompt = f"""You are a Post-Quantum Cryptography (PQC) migration expert.
 
-The following legacy cryptography usage was detected:
-- File: {finding['path']}
-- Line: {finding['start']['line']}
-- Issue: {finding['check_id']} — {finding['extra']['message']}
+The following legacy cryptography usages were detected:
 
-Code context:
-```
-{code_context}
-```
+{findings_text}
 
-Provide a concise PQC migration suggestion in Korean:
+For each finding, provide a concise PQC migration suggestion in Korean:
 1. 문제 설명 (1문장)
 2. 권장 PQC 대안 (ML-KEM FIPS 203 for key exchange, ML-DSA FIPS 204 for signatures)
 3. 대체 코드 예시 (코드는 영어로)
 
-Keep it concise and practical."""
+Format each response as:
+### [{number}] <rule_id>
+<suggestion>
+
+Keep each suggestion concise and practical."""
 
     return call_gemini(api_key, prompt)
 
@@ -103,32 +112,13 @@ def main():
             f.write("## 🤖 LLM PQC 마이그레이션 제안\n\n탐지된 레거시 암호 사용 없음.\n")
         return
 
-    print(f"[INFO] {len(results)}건 탐지 — Gemini API 제안 생성 중...")
+    print(f"[INFO] {len(results)}건 탐지 — Gemini API 단일 배치 호출 중...")
 
-    suggestions = []
-    for i, r in enumerate(results, 1):
-        path = r["path"]
-        line = r["start"]["line"]
-        rule = r["check_id"]
-
-        print(f"  [{i}/{len(results)}] {path}:{line} ({rule})")
-        code_context = read_code_context(path, line)
-
-        try:
-            suggestion = generate_suggestion(api_key, r, code_context)
-        except Exception as e:
-            print(f"  [WARN] API 호출 실패: {e}")
-            suggestion = f"API 호출 실패: {e}"
-
-        if i < len(results):
-            time.sleep(3)
-
-        suggestions.append({
-            "file": path,
-            "line": line,
-            "rule": rule,
-            "suggestion": suggestion,
-        })
+    try:
+        batch_response = generate_suggestions_batch(api_key, results)
+    except Exception as e:
+        print(f"  [WARN] API 호출 실패: {e}")
+        batch_response = f"API 호출 실패: {e}"
 
     # 마크다운 생성
     md = ["## 🤖 LLM PQC 마이그레이션 제안\n"]
@@ -137,12 +127,8 @@ def main():
         f"PQC 마이그레이션 방법을 제안합니다.\n"
         f"> 제안 내용을 검토 후 적용하세요. (Human-in-the-loop)\n"
     )
-
-    for s in suggestions:
-        md.append(f"\n### `{s['file']}` — Line {s['line']}")
-        md.append(f"**Rule:** `{s['rule']}`\n")
-        md.append(s["suggestion"])
-        md.append("\n---")
+    md.append(batch_response)
+    md.append("\n---")
 
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(md))

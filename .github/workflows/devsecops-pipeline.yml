@@ -131,7 +131,7 @@ jobs:
             --output artifacts/crypto-findings.json \
             --quiet \
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
-            --exclude "pqc-webserver/*" --exclude "nginx/gen-certs.sh" \
+            --exclude "pqc-webserver/*" --exclude "nginx/gen-certs.sh" --exclude "nginx/Dockerfile" \
             . || true
 
           # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)

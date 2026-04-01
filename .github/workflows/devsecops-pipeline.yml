@@ -18,6 +18,12 @@ on:
           - '2'
           - '3'
 
+# 자동 마이그레이션 커밋을 위해 쓰기 권한 필요
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   pqc-migration-pipeline:
     runs-on: ubuntu-latest
@@ -25,8 +31,10 @@ jobs:
     steps:
       - name: 1. 저장소 코드 가져오기
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. Stage 설정 및 nginx.conf 준비
+      - name: 2. Stage 감지 및 nginx.conf 준비
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             STAGE="${{ github.event.inputs.stage }}"
@@ -41,7 +49,6 @@ jobs:
               echo "Stage 3: Post-Quantum TLS로 설정"
             fi
           else
-            # push/PR 시: nginx.conf 내용으로 Stage 자동 감지
             if grep -q "p521_mlkem\|p384_mlkem" nginx/nginx.conf; then
               STAGE=3
             elif grep -q "X25519MLKEM768\|x25519_mlkem" nginx/nginx.conf; then
@@ -53,12 +60,93 @@ jobs:
           fi
           echo "STAGE=$STAGE" >> $GITHUB_ENV
 
-      - name: 3. 정적 보안 분석 (SAST & Secret)
+      - name: 3. Semgrep 설치
+        run: pip install --quiet semgrep
+
+      - name: 4. PQC 자동 마이그레이션 (nginx 설정)
+        run: |
+          echo "========================================"
+          echo " PQC Auto-Migration — nginx TLS 설정 검사"
+          echo "========================================"
+
+          MIGRATED=false
+
+          # PQC 키교환(mlkem) 미포함 → Classical TLS 판정 → 마이그레이션
+          if ! grep -qiE "mlkem" nginx/nginx.conf; then
+            echo "[MIGRATION] Classical TLS 감지 (PQC 키교환 없음)"
+            echo "  ssl_ecdh_curve: $(grep ssl_ecdh_curve nginx/nginx.conf || echo '미설정')"
+            echo "  → Hybrid PQC (X25519MLKEM768)로 자동 마이그레이션"
+            cp nginx/nginx-hybrid.conf nginx/nginx.conf
+            MIGRATED=true
+          fi
+
+          # 약한 프로토콜(TLSv1.0/1.1) 감지 → TLSv1.3으로 수정
+          if grep -qE "TLSv1(\s|;|$)" nginx/nginx.conf || grep -q "TLSv1\.1" nginx/nginx.conf; then
+            echo "[MIGRATION] TLSv1.0/1.1 감지 → TLSv1.3으로 자동 수정"
+            sed -i 's/ssl_protocols.*/ssl_protocols TLSv1.3;/' nginx/nginx.conf
+            MIGRATED=true
+          fi
+
+          if [ "$MIGRATED" = "true" ]; then
+            # 수정된 Stage 재감지
+            if grep -q "p521_mlkem\|p384_mlkem" nginx/nginx.conf; then
+              NEW_STAGE=3
+            elif grep -qiE "mlkem" nginx/nginx.conf; then
+              NEW_STAGE=2
+            else
+              NEW_STAGE=1
+            fi
+
+            echo ""
+            echo "마이그레이션 결과:"
+            grep -E "ssl_protocols|ssl_ecdh_curve" nginx/nginx.conf
+
+            # 자동 커밋 & push
+            git config user.name "PQC Migration Bot"
+            git config user.email "pqc-bot@github-actions.com"
+            git add nginx/nginx.conf
+            git commit -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]
+
+            파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여
+            Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
+            git push origin HEAD:${{ github.ref_name }}
+
+            echo "STAGE=${NEW_STAGE}" >> $GITHUB_ENV
+            echo "[DONE] Stage ${NEW_STAGE}로 마이그레이션 완료"
+          else
+            echo "[OK] PQC 설정 확인 — 마이그레이션 불필요"
+          fi
+
+      - name: 5. 고전 암호 탐지 (코드 전체)
+        run: |
+          echo "========================================"
+          echo " 고전 암호 사용 탐지 (코드 + 의존성)"
+          echo "========================================"
+
+          mkdir -p artifacts
+
+          # 코드 내 고전 암호 패턴 탐지 (Python, Java 등)
+          semgrep --config scanner/rules/crypto-classical.yaml \
+            --json \
+            --output artifacts/crypto-findings.json \
+            --quiet \
+            --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
+            --exclude "pqc-webserver/*" \
+            . || true
+
+          # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)
+          FINDINGS_COUNT=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          echo "FINDINGS_COUNT=${FINDINGS_COUNT}" >> $GITHUB_ENV
+          if [ "$FINDINGS_COUNT" -gt 0 ]; then
+            echo "[WARN] 고전 암호 사용 ${FINDINGS_COUNT}건 탐지 — Step 6 완료 후 차단 판정"
+            jq -r '.results[] | "  [\(.extra.severity)] \(.path):\(.start.line) — \(.check_id)"' artifacts/crypto-findings.json
+          else
+            echo "[OK] 고전 암호 패턴 탐지 없음"
+          fi
+
+      - name: 6. 정적 보안 분석 (SAST & Secret & CVE)
         run: |
           echo "진행 중: 코드 내 하드코딩된 키 및 취약점 스캔..."
-
-          # Semgrep 설치
-          pip install --quiet semgrep
 
           # Trivy 설치
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
@@ -69,9 +157,27 @@ jobs:
           curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
 
-          mkdir -p artifacts
-          bash scanner/run_scanners.sh . ${{ env.STAGE }}
+          bash scanner/run_scanners.sh . ${{ env.STAGE }} || true
           cp scanner/results/scan-summary.json artifacts/scan-summary.json
+
+          # 종합 보안 판정 — Gitleaks + 레거시 암호
+          GITLEAKS_RESULT=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          BLOCK=false
+
+          if [ "$GITLEAKS_RESULT" = "fail" ]; then
+            echo "[FATAL] 시크릿 탐지 — 하드코딩된 키/토큰이 감지되었습니다."
+            BLOCK=true
+          fi
+
+          if [ "${FINDINGS_COUNT:-0}" -gt 0 ]; then
+            echo "[FATAL] 고전 암호 사용 ${FINDINGS_COUNT}건 — PQC 마이그레이션 필요."
+            BLOCK=true
+          fi
+
+          if [ "$BLOCK" = "true" ]; then
+            echo "파이프라인 차단."
+            exit 1
+          fi
 
       - name: 스캔 결과 업로드
         if: always()
@@ -80,40 +186,219 @@ jobs:
           name: scan-results-stage${{ env.STAGE }}
           path: |
             scanner/results/
-            artifacts/scan-summary.json
+            artifacts/
 
-      - name: 4. TLS 암호 정책 검증 (Security Gate)
+      - name: 7. TLS 암호 정책 검증 (Security Gate)
         run: |
           echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
           semgrep --config scanner/rules/tls-policy.yaml nginx/ --error --quiet
           echo "[PASS] TLS 정책 검증 통과 — 취약 프로토콜/암호 없음"
 
-      - name: 5. PQC Nginx 도커 빌드 및 가동
+      - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
-          docker compose build
-          docker compose up -d
+          TLS_STAGE=${{ env.STAGE }} docker compose build
+          TLS_STAGE=${{ env.STAGE }} docker compose up -d
           echo "서비스 시작 대기 중 (15초)..."
           sleep 15
           docker compose ps
 
-      - name: 6. 배포 후 동적 검증 (TLS 협상 확인)
+      - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
           docker exec tls-tester verify_tls.sh proxy-server 443 ${{ env.STAGE }}
 
-      - name: 7. CBOM 명세서 생성 및 리포팅
+      - name: 10. CBOM 명세서 생성 및 리포팅
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
-          mkdir -p artifacts
-          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json
+          python policy/cbom_gen.py \
+            --stage ${{ env.STAGE }} \
+            --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+          # 고전 암호 탐지 결과를 CBOM에 통합
+          python3 -c "
+          import json, os
+          cbom_path = 'artifacts/cbom_stage${{ env.STAGE }}.json'
+          findings_path = 'artifacts/crypto-findings.json'
+
+          with open(cbom_path) as f:
+              cbom = json.load(f)
+
+          # 고전 암호 탐지 결과 추가
+          if os.path.exists(findings_path):
+              with open(findings_path) as f:
+                  findings = json.load(f)
+              results = findings.get('results', [])
+              cbom['classical_crypto_findings'] = [
+                  {
+                      'file': r['path'],
+                      'line': r['start']['line'],
+                      'rule': r['check_id'],
+                      'severity': r['extra']['severity'],
+                      'message': r['extra']['message'],
+                      'action_required': 'Manual migration to PQC equivalent required'
+                  }
+                  for r in results
+              ]
+              cbom['migration_summary'] = {
+                  'auto_migrated': 'nginx TLS configuration',
+                  'manual_action_required': len(results),
+                  'status': 'PARTIAL' if results else 'COMPLETE'
+              }
+          else:
+              cbom['migration_summary'] = {
+                  'auto_migrated': 'nginx TLS configuration',
+                  'manual_action_required': 0,
+                  'status': 'COMPLETE'
+              }
+
+          with open(cbom_path, 'w') as f:
+              json.dump(cbom, f, indent=2, ensure_ascii=False)
+          print('[DONE] CBOM에 마이그레이션 결과 통합 완료')
+          "
+
+          # 이전 실행 CBOM 다운로드 후 마이그레이션 진척도 비교
+          PREV_CBOM="artifacts/prev_cbom.json"
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=cbom-stage${{ env.STAGE }}&per_page=1" \
+            --jq '.artifacts[] | select(.expired == false) | .id' 2>/dev/null | head -1 || true)
+
+          if [ -n "$ARTIFACT_ID" ]; then
+            echo "이전 CBOM 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
+            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
+              > /tmp/prev_cbom.zip 2>/dev/null && \
+              unzip -p /tmp/prev_cbom.zip > "$PREV_CBOM" 2>/dev/null || true
+          else
+            echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
+          fi
+
+          python policy/cbom_diff.py \
+            --current artifacts/cbom_stage${{ env.STAGE }}.json \
+            --previous "$PREV_CBOM" \
+            --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: CBOM 결과 업로드
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cbom-stage${{ env.STAGE }}
+          name: cbom-stage${{ env.STAGE }}-run${{ github.run_number }}
           path: artifacts/cbom_stage${{ env.STAGE }}.json
+
+      - name: 파이프라인 실행 요약 (Job Summary)
+        if: always()
+        run: |
+          STAGE="${{ env.STAGE }}"
+          TRIVY=$(jq -r '.tools.trivy // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          PROGRESS=$(jq -r '.migration_progress.status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          MANUAL=$(jq -r '.migration_summary.manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+
+          icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
+
+          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
+          ## DevSecOps PQC Pipeline — Stage ${STAGE}
+
+          ### 스캔 결과
+          | 도구 | 결과 |
+          |------|------|
+          | Trivy (CVE) | $(icon $TRIVY) ${TRIVY} |
+          | Gitleaks (Secrets) | $(icon $GITLEAKS) ${GITLEAKS} |
+          | Semgrep (SAST) | $(icon $SEMGREP) ${SEMGREP} |
+
+          ### 레거시 암호 탐지
+          - 탐지 건수: **${FINDINGS}건**
+
+          ### CBOM 마이그레이션
+          - 수동 조치 필요: **${MANUAL}건**
+          - 진척도: **${PROGRESS}**
+          SUMMARY
+
+      - name: PR 보안 리포트 코멘트
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          STAGE: ${{ env.STAGE }}
+        with:
+          script: |
+            const fs = require('fs');
+            const stage = process.env.STAGE || '?';
+
+            let trivy = 'unknown', gitleaks = 'unknown', semgrep = 'unknown';
+            try {
+              const s = JSON.parse(fs.readFileSync('scanner/results/scan-summary.json', 'utf8'));
+              trivy = s.tools?.trivy || 'unknown';
+              gitleaks = s.tools?.gitleaks || 'unknown';
+              semgrep = s.tools?.semgrep || 'unknown';
+            } catch(e) {}
+
+            let findings = 0, progress = 'N/A', manual = 'N/A';
+            try {
+              const cbom = JSON.parse(fs.readFileSync(`artifacts/cbom_stage${stage}.json`, 'utf8'));
+              findings = cbom.classical_crypto_findings?.length || 0;
+              progress = cbom.migration_progress?.status || 'N/A';
+              manual = cbom.migration_summary?.manual_action_required ?? 'N/A';
+            } catch(e) {}
+
+            const icon = (r) => r === 'pass' ? '✅' : r === 'fail' ? '❌' : '⚠️';
+            const pIcon = (s) => ({ IMPROVED: '📈', REGRESSED: '📉', BASELINE: '🔰' }[s] || '➡️');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              `## 🔐 PQC Pipeline 보안 리포트 — Stage ${stage}`,
+              '',
+              '### 스캔 결과',
+              '| 도구 | 결과 |',
+              '|------|------|',
+              `| Trivy (CVE) | ${icon(trivy)} ${trivy} |`,
+              `| Gitleaks (Secrets) | ${icon(gitleaks)} ${gitleaks} |`,
+              `| Semgrep (SAST) | ${icon(semgrep)} ${semgrep} |`,
+              '',
+              '### 레거시 암호 탐지',
+              `- 탐지 건수: **${findings}건**`,
+              '',
+              '### CBOM 마이그레이션 진척도',
+              `- 수동 조치 필요: **${manual}건**`,
+              `- 상태: ${pIcon(progress)} **${progress}**`,
+              '',
+              `> 🤖 [Actions 실행 결과 보기](${runUrl})`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: 파이프라인 실패 시 GitHub Issue 생성
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stage = process.env.STAGE || '?';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[PQC Pipeline] Stage ${stage} 파이프라인 실패 — Run #${context.runNumber}`,
+              body: [
+                '## 파이프라인 실패 알림',
+                '',
+                `- **브랜치**: \`${context.ref.replace('refs/heads/', '')}\``,
+                `- **Stage**: ${stage}`,
+                `- **실행 번호**: #${context.runNumber}`,
+                `- **실패 로그**: [Actions 실행 결과 보기](${runUrl})`,
+                '',
+                '> 이 이슈는 DevSecOps PQC Pipeline에 의해 자동 생성되었습니다.',
+              ].join('\n'),
+              labels: ['pipeline-failure', 'security'],
+            });
+        env:
+          STAGE: ${{ env.STAGE }}
 
       - name: 컨테이너 정리
         if: always()

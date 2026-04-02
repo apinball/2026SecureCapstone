@@ -47,7 +47,6 @@ trap 'rm -f "$TMPFILE"' EXIT INT TERM
 openssl s_client \
     -connect "$HOST:$PORT" \
     -groups "$CURVES" \
-    -brief \
     -no_tls1 -no_tls1_1 \
     2>&1 </dev/null | tee "$TMPFILE"
 

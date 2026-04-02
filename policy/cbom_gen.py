@@ -236,6 +236,7 @@ def parse_nginx_directives(config_text: str) -> dict:
     """컨테이너 내부 nginx 설정 문자열에서 핵심 TLS directive를 추출."""
     patterns = {
         "ssl_protocols": (r"ssl_protocols\s+([^;]+);", "space"),
+        "ssl_ciphers": (r"ssl_ciphers\s+([^;]+);", "colon_or_space"),
         "ssl_ecdh_curve": (r"ssl_ecdh_curve\s+([^;]+);", "colon_or_space"),
         "ssl_certificate": (r"ssl_certificate\s+([^;]+);", "raw"),
         "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
@@ -520,7 +521,7 @@ def generate_cbom(
         static["container_config_available"] = True
         container_findings = parse_nginx_directives(container_conf["config_text"])
         local_findings = static.get("findings", {})
-        for key in ("ssl_protocols", "ssl_ecdh_curve", "ssl_certificate", "ssl_certificate_key"):
+        for key in ("ssl_protocols", "ssl_ciphers", "ssl_ecdh_curve", "ssl_certificate", "ssl_certificate_key"):
             local_val = local_findings.get(key)
             container_val = container_findings.get(key)
             if local_val is not None and container_val is not None and local_val != container_val:
@@ -545,6 +546,18 @@ def generate_cbom(
     static_f = static.get("findings", {})
     dynamic_f = dynamic.get("findings", {})
     cert_f = dynamic_f.get("certificate", {})
+
+    effective_static = dict(static_f)
+    if "config_text" in container_conf:
+        container_findings = parse_nginx_directives(container_conf["config_text"])
+        static["effective_findings"] = container_findings
+        static["effective_source"] = f"container:{server_container}:/opt/nginx/nginx-conf/nginx.conf"
+        for key in ("ssl_protocols", "ssl_ciphers", "ssl_ecdh_curve", "ssl_certificate", "ssl_certificate_key"):
+            if container_findings.get(key) is not None:
+                effective_static[key] = container_findings[key]
+    else:
+        static["effective_findings"] = static_f
+        static["effective_source"] = resolved_config
 
     # ── PQC 상태 판정 ──
     key_exchange = dynamic_f.get("key_exchange_actual", "")
@@ -574,11 +587,12 @@ def generate_cbom(
         "pqc_status": pqc_status,
         "validation": validation,
         "crypto_assets": {
-            "configured_protocols": static_f.get("ssl_protocols", []),
-            "configured_ciphers": static_f.get("ssl_ciphers", []),
-            "configured_key_exchange": static_f.get("ssl_ecdh_curve", []),
-            "certificate_path": static_f.get("ssl_certificate"),
-            "private_key_path": static_f.get("ssl_certificate_key"),
+            "configured_protocols": effective_static.get("ssl_protocols", []),
+            "configured_ciphers": effective_static.get("ssl_ciphers", static_f.get("ssl_ciphers", [])),
+            "configured_key_exchange": effective_static.get("ssl_ecdh_curve", []),
+            "certificate_path": effective_static.get("ssl_certificate"),
+            "private_key_path": effective_static.get("ssl_certificate_key"),
+            "config_evidence_source": static.get("effective_source"),
             "negotiated_protocol": dynamic_f.get("negotiated_protocol"),
             "negotiated_cipher": dynamic_f.get("negotiated_cipher"),
             "negotiated_key_exchange": dynamic_f.get("key_exchange_actual"),

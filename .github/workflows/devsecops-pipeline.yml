@@ -131,7 +131,7 @@ jobs:
             --output artifacts/crypto-findings.json \
             --quiet \
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
-            --exclude "pqc-webserver/*" --exclude "nginx/gen-certs.sh" --exclude "nginx/Dockerfile" \
+            --exclude "pqc-webserver/*" \
             . || true
 
           # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)
@@ -259,14 +259,22 @@ jobs:
 
           # 이전 실행 CBOM 다운로드 후 마이그레이션 진척도 비교
           PREV_CBOM="artifacts/prev_cbom.json"
-          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=cbom-stage${{ env.STAGE }}&per_page=1" \
-            --jq '.artifacts[] | select(.expired == false) | .id' 2>/dev/null | head -1 || true)
+          ARTIFACT_PREFIX="cbom-stage${{ env.STAGE }}-run"
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq '.artifacts
+              | map(select(.expired == false))
+              | map(select(.name | startswith("'$ARTIFACT_PREFIX'")))
+              | sort_by(.created_at)
+              | reverse
+              | .[0].id // empty' 2>/dev/null || true)
 
           if [ -n "$ARTIFACT_ID" ]; then
             echo "이전 CBOM 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
-            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
-              > /tmp/prev_cbom.zip 2>/dev/null && \
-              unzip -p /tmp/prev_cbom.zip > "$PREV_CBOM" 2>/dev/null || true
+            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/prev_cbom.zip 2>/dev/null || true
+            PREV_ENTRY=$(unzip -Z1 /tmp/prev_cbom.zip 2>/dev/null | grep -E 'cbom_stage[0-9]+\.json$' | head -1 || true)
+            if [ -n "$PREV_ENTRY" ]; then
+              unzip -p /tmp/prev_cbom.zip "$PREV_ENTRY" > "$PREV_CBOM" 2>/dev/null || true
+            fi
           else
             echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
           fi

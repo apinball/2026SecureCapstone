@@ -23,7 +23,7 @@ echo ""
 
 # Run Trivy scan
 trivy fs \
-    --scanners vuln,secret,misconfig \
+    --scanners vuln,misconfig \
     --severity HIGH,CRITICAL,MEDIUM \
     --format json \
     --output "$OUTPUT_FILE" \

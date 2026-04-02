@@ -53,7 +53,7 @@ openssl s_client \
 OPENSSL_EXIT=${PIPESTATUS[0]}
 
 # Fail if connection failed
-if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -q "Protocol version" "$TMPFILE"; then
+if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -qE "Protocol version|Protocol\s*:" "$TMPFILE"; then
     echo "[ERROR] TLS connection to $HOST:$PORT failed"
     exit 1
 fi
@@ -61,9 +61,9 @@ fi
 echo ""
 
 # Parse negotiated values
-PROTOCOL=$(grep "Protocol version" "$TMPFILE" | awk '{print $NF}')
-CIPHER=$(grep "Ciphersuite" "$TMPFILE" | awk '{print $NF}')
-GROUP=$(grep -E "Negotiated TLS1.3 group|Server Temp Key" "$TMPFILE" | cut -d: -f2- | tr -d ' ')
+PROTOCOL=$(grep -E "Protocol version|Protocol\s*:" "$TMPFILE" | grep -v "No client" | awk '{print $NF}' | head -1)
+CIPHER=$(grep -E "Ciphersuite|Cipher is" "$TMPFILE" | awk '{print $NF}' | head -1)
+GROUP=$(grep -E "Negotiated TLS1.3 group|Server Temp Key|Peer Temp Key" "$TMPFILE" | cut -d: -f2- | tr -d ' ' | awk -F',' '{print $1}' | head -1)
 
 # Handle empty values
 PROTOCOL=${PROTOCOL:-Unknown}

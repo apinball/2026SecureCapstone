@@ -55,17 +55,28 @@ DEFAULT_STRICT_VALIDATION = os.getenv("STRICT_VALIDATION", "false").strip().lowe
     "1", "true", "yes", "on"
 }
 
+
 # ── PQC 알고리즘 패턴 (명시적 매칭) ──────────────────────────────────────────
-# Stage 2: X25519 + MLKEM 하이브리드
+# Stage 2: X25519 + MLKEM 하이브리드 — [_\s]* 로 구분자 유무 모두 커버
 HYBRID_PQC_PATTERNS = [
     re.compile(r"x25519[_\s]*mlkem", re.IGNORECASE),
-    re.compile(r"X25519MLKEM", re.IGNORECASE),
 ]
 # Stage 3: P-curve + MLKEM 또는 순수 PQC
+# 두 번째 패턴은 negative lookbehind로 하이브리드 문자열 내 오매칭을 방지
 PURE_PQC_PATTERNS = [
     re.compile(r"p\d+[_\s]*mlkem", re.IGNORECASE),
-    re.compile(r"mlkem\d+", re.IGNORECASE),
+    re.compile(r"(?<![a-zA-Z\d])mlkem\d+", re.IGNORECASE),
 ]
+
+
+# ── TLS directive 파싱 패턴 (정적/컨테이너 분석 공용) ─────────────────────────
+TLS_DIRECTIVE_PATTERNS = {
+    "ssl_protocols": (r"ssl_protocols\s+([^;]+);", "space"),
+    "ssl_ciphers": (r"ssl_ciphers\s+([^;]+);", "colon_or_space"),
+    "ssl_ecdh_curve": (r"ssl_ecdh_curve\s+([^;]+);", "colon_or_space"),
+    "ssl_certificate": (r"ssl_certificate\s+([^;]+);", "raw"),
+    "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
+}
 
 
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -83,7 +94,15 @@ def normalize_stage(stage: str) -> str:
         "3": "3", "pq": "3",
         "auto": "auto",
     }
-    result = aliases.get(value, "auto")
+    result = aliases.get(value)
+
+    if result is None:
+        print(
+            f"[WARN] 알 수 없는 stage 값 '{stage}' → auto로 대체합니다. "
+            f"유효 값: {', '.join(sorted(aliases.keys()))}",
+            file=sys.stderr,
+        )
+        result = "auto"
 
     # auto인 경우 CI 환경변수 $STAGE에서 자동 감지 시도
     if result == "auto":
@@ -102,7 +121,6 @@ def run_cmd(cmd: list, timeout: int = 30) -> dict:
         proc = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
             encoding='utf-8',
             timeout=timeout,
         )
@@ -182,15 +200,7 @@ def static_analysis(config_path: str) -> dict:
         result["error"] = f"{config_path} 읽기 실패: {e}"
         return result
 
-    patterns = {
-        "ssl_protocols": (r"ssl_protocols\s+([^;]+);", "space"),
-        "ssl_ciphers": (r"ssl_ciphers\s+([^;]+);", "colon_or_space"),
-        "ssl_ecdh_curve": (r"ssl_ecdh_curve\s+([^;]+);", "colon_or_space"),
-        "ssl_certificate": (r"ssl_certificate\s+([^;]+);", "raw"),
-        "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
-    }
-
-    result["findings"] = _parse_directives(text, patterns)
+    result["findings"] = _parse_directives(text, TLS_DIRECTIVE_PATTERNS)
 
     # TLS 1.3 전용 설정에서 ssl_ciphers가 없는 건 정상
     protocols = result["findings"].get("ssl_protocols", [])
@@ -234,14 +244,7 @@ def read_container_config(
 
 def parse_nginx_directives(config_text: str) -> dict:
     """컨테이너 내부 nginx 설정 문자열에서 핵심 TLS directive를 추출."""
-    patterns = {
-        "ssl_protocols": (r"ssl_protocols\s+([^;]+);", "space"),
-        "ssl_ciphers": (r"ssl_ciphers\s+([^;]+);", "colon_or_space"),
-        "ssl_ecdh_curve": (r"ssl_ecdh_curve\s+([^;]+);", "colon_or_space"),
-        "ssl_certificate": (r"ssl_certificate\s+([^;]+);", "raw"),
-        "ssl_certificate_key": (r"ssl_certificate_key\s+([^;]+);", "raw"),
-    }
-    return _parse_directives(config_text, patterns)
+    return _parse_directives(config_text, TLS_DIRECTIVE_PATTERNS)
 
 
 # ── 단계 판정 ────────────────────────────────────────────────────────────────
@@ -286,11 +289,15 @@ def parse_verify_tls_output(output: str) -> dict:
         Ciphersuite: TLS_AES_256_GCM_SHA384
         Negotiated TLS1.3 group: X25519MLKEM768
         판정: Stage 2 - Hybrid PQC-TLS
+
+    주의: Stage 3에서는 "판정:" 라인이 2개 출력되므로 (PQC 연결 확인 + 최종 판정)
+    마지막 매칭을 사용한다.
     """
     result = {}
 
     # 두 가지 스크립트 형식을 모두 커버하는 패턴 (우선순위 순)
-    patterns = [
+    # "판정"을 제외한 패턴은 first-match 사용
+    first_match_patterns = [
         # --- 프로토콜 ---
         (r"Protocol\s*(?:version)?\s*:\s*(.+)", "negotiated_protocol"),
         # --- 암호 스위트 ---
@@ -300,16 +307,22 @@ def parse_verify_tls_output(output: str) -> dict:
         (r"Negotiated TLS[\d.]+ group\s*:\s*(.+)", "key_exchange_actual"),
         (r"Server Temp Key\s*:\s*(.+)", "key_exchange_actual"),
         (r"Peer Temp Key\s*:\s*(.+)", "key_exchange_actual"),
-        # --- verify_tls.sh 자체 판정 ---
-        (r"판정\s*:\s*(.+)", "verify_tls_judgement"),
     ]
 
-    for pattern, key in patterns:
+    for pattern, key in first_match_patterns:
         m = re.search(pattern, output, re.IGNORECASE)
         if m and key not in result:
             val = m.group(1).strip()
             if val.lower() != "unknown":
                 result[key] = val
+
+    # "판정:" 패턴은 마지막 매칭을 사용 (Stage 3에서 최종 판정 라인 캡처)
+    judgement_matches = re.findall(r"판정\s*:\s*(.+)", output)
+    if judgement_matches:
+        # 마지막 판정 라인이 최종 결과 (Stage 3: "PQC 연결 성공" → "Stage 3 - PQC 강제 적용")
+        final_judgement = judgement_matches[-1].strip()
+        if final_judgement.lower() != "unknown":
+            result["verify_tls_judgement"] = final_judgement
 
     return result
 
@@ -377,12 +390,19 @@ def cross_validate(our_status: str, script_judgement: str, requested_stage: str)
     jl = script_judgement.lower()
 
     # verify_tls.sh 판정 -> stage 숫자
+    # Stage 3 최종 판정 형식: "Stage 3 - PQC 강제 적용 ✓ ..."
+    # Stage 2 판정 형식:      "Stage 2 - Hybrid PQC-TLS ✓"
+    # Stage 1 판정 형식:      "Stage 1 - Classical TLS (ECC) ..."
+    # PQC 키워드 기반 fallback: "pqc" 포함 시 Stage 3로 추정
     if "stage 3" in jl:
         script_stage = "3"
     elif "stage 2" in jl:
         script_stage = "2"
     elif "stage 1" in jl:
         script_stage = "1"
+    elif "pqc" in jl and "hybrid" not in jl:
+        # fallback: "PQC 강제 적용" 등 stage 번호 없이 PQC만 언급된 경우
+        script_stage = "3"
     else:
         script_stage = None
 
@@ -403,8 +423,9 @@ def cross_validate(our_status: str, script_judgement: str, requested_stage: str)
             "파싱 로직 또는 알고리즘 매핑을 확인하세요."
         )
 
-    # 요청한 stage와 실제 협상 결과가 다른 경우
+    # 요청한 stage와 실제 협상 결과가 다른 경우 — 서버 설정 미적용 가능성
     if requested_stage in ("1", "2", "3") and our_stage and requested_stage != our_stage:
+        validation["consistent"] = False
         validation["warnings"].append(
             f"요청 Stage({requested_stage})와 실제 협상 결과(Stage {our_stage})가 다릅니다. "
             "서버 설정이 올바르게 적용되었는지 확인하세요."
@@ -517,6 +538,9 @@ def generate_cbom(
     # ── 컨테이너 실행 설정 보조 확인 ──
     # CI에서 cp로 nginx.conf가 교체되므로 로컬 파일과 컨테이너 내부 설정이 다를 수 있음
     container_conf = read_container_config(server_container)
+
+    # 컨테이너 설정 파싱 결과 캐시 (중복 호출 방지)
+    container_findings = None
     if "config_text" in container_conf:
         static["container_config_available"] = True
         container_findings = parse_nginx_directives(container_conf["config_text"])
@@ -547,9 +571,9 @@ def generate_cbom(
     dynamic_f = dynamic.get("findings", {})
     cert_f = dynamic_f.get("certificate", {})
 
+    # effective_static: 컨테이너 설정이 있으면 우선 적용
     effective_static = dict(static_f)
-    if "config_text" in container_conf:
-        container_findings = parse_nginx_directives(container_conf["config_text"])
+    if container_findings is not None:
         static["effective_findings"] = container_findings
         static["effective_source"] = f"container:{server_container}:/opt/nginx/nginx-conf/nginx.conf"
         for key in ("ssl_protocols", "ssl_ciphers", "ssl_ecdh_curve", "ssl_certificate", "ssl_certificate_key"):

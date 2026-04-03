@@ -197,6 +197,8 @@ jobs:
       - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
+          docker pull openquantumsafe/nginx
+          docker pull openquantumsafe/curl
           TLS_STAGE=${{ env.STAGE }} docker compose build
           TLS_STAGE=${{ env.STAGE }} docker compose up -d
           echo "pqc-proxy healthcheck 대기 중..."
@@ -226,8 +228,16 @@ jobs:
             -msg 2>&1 </dev/null \
             | grep -iE "named group|key_share|HelloRetry|x25519mlkem|mlkem|supported_group" | head -30 || true
 
-          echo "[DEBUG] ssl_conf_command 적용 확인 (nginx -T):"
-          docker exec pqc-proxy nginx -T 2>&1 | grep -iE "group|ecdh|conf_command|ssl_" | head -20 || true
+          echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
+          docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \
+          docker exec pqc-proxy cat /etc/nginx/nginx.conf 2>/dev/null || true
+
+          echo "[DEBUG] X25519MLKEM768 전용 연결 (fallback 없음 — 서버 지원 여부 확인):"
+          docker exec tls-tester /opt/oqssa/bin/openssl s_client \
+            -connect proxy-server:443 \
+            -groups X25519MLKEM768 \
+            -no_tls1 -no_tls1_1 2>&1 </dev/null \
+            | grep -E "CONNECTED|alert|error|Cipher|Protocol|Negotiated|Temp Key|MLKEM|mlkem|HelloRetry" | head -15 || true
 
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 

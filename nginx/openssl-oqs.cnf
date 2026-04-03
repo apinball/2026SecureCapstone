@@ -11,5 +11,5 @@ oqsprovider = oqs_sect
 activate = 1
 
 [oqs_sect]
-module = /opt/oqssa/lib/ossl-modules/oqsprovider.so
+module = /opt/openssl/.openssl/lib/ossl-modules/oqsprovider.so
 activate = 1

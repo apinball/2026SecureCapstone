@@ -11,6 +11,14 @@ RUN apk add --no-cache openssl curl && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes
 
+# Dilithium3 인증서 생성 (Stage 3 PQ-only 전용, OQS-OpenSSL 내장)
+RUN openssl req -x509 -newkey dilithium3 -days 365 \
+        -keyout /etc/nginx/certs/dilithium3.key \
+        -out /etc/nginx/certs/dilithium3.crt \
+        -subj "/C=KR/O=QuantumJump/CN=localhost" \
+        -nodes && \
+    chmod 600 /etc/nginx/certs/dilithium3.key
+
 # 설정 파일을 컨테이너 안으로 복사
 COPY nginx.conf /opt/nginx/nginx-conf/nginx.conf
 COPY nginx-ecc.conf /opt/nginx/nginx-conf/nginx-ecc.conf

@@ -216,14 +216,17 @@ jobs:
           echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
           docker logs pqc-proxy 2>&1
 
-          echo "[DEBUG] pqc-proxy nginx 빌드 정보 (OQS OpenSSL 버전):"
+          echo "[DEBUG] pqc-proxy nginx 빌드 정보:"
           docker exec pqc-proxy nginx -V 2>&1 | head -5 || true
 
-          echo "[DEBUG] pqc-proxy 내부 OQS 그룹 목록:"
-          docker exec pqc-proxy find /opt /usr/local -name "openssl" -type f 2>/dev/null | head -5 || true
-          docker exec pqc-proxy /opt/nginx/sbin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || \
-          docker exec pqc-proxy /opt/openssl/bin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || \
-          docker exec pqc-proxy sh -c 'LD_LIBRARY_PATH=/opt/nginx/lib /opt/nginx/sbin/openssl list -kem-algorithms 2>&1' | grep -iE "mlkem|kyber|x25519" | head -20 || true
+          echo "[DEBUG] pqc-proxy OPENSSL_CONF 환경변수:"
+          docker exec pqc-proxy sh -c 'echo OPENSSL_CONF=$OPENSSL_CONF' || true
+
+          echo "[DEBUG] pqc-proxy openssl.cnf (provider 설정 확인):"
+          docker exec pqc-proxy cat /opt/openssl/ssl/openssl.cnf 2>/dev/null | head -40 || true
+
+          echo "[DEBUG] pqc-proxy nginx error.log:"
+          docker exec pqc-proxy cat /opt/nginx/logs/error.log 2>/dev/null | tail -20 || true
 
           echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \

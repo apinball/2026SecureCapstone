@@ -8,6 +8,7 @@ services:
       - "443:443"
     environment:
       - TLS_STAGE=${TLS_STAGE:-1}
+      - OPENSSL_CONF=/opt/openssl/ssl/openssl.cnf
     depends_on:
       - backend-api
     healthcheck:

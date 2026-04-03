@@ -50,7 +50,7 @@ DEFAULT_PORT = int(os.getenv("PROXY_PORT", "443"))
 DEFAULT_TESTER = os.getenv("TESTER_CONTAINER", "tls-tester")
 DEFAULT_SERVER = os.getenv("SERVER_CONTAINER", "pqc-proxy")
 DEFAULT_CERT_PATH = os.getenv("SERVER_CERT_PATH", "/etc/nginx/certs/server.crt")
-DEFAULT_VERIFY_SCRIPT = os.getenv("VERIFY_SCRIPT", "verify_tls.sh")
+DEFAULT_VERIFY_SCRIPT = os.getenv("VERIFY_SCRIPT", "tls_check.sh")
 DEFAULT_STRICT_VALIDATION = os.getenv("STRICT_VALIDATION", "false").strip().lower() in {
     "1", "true", "yes", "on"
 }
@@ -304,6 +304,7 @@ def parse_verify_tls_output(output: str) -> dict:
         (r"Cipher(?:suite)?\s*:\s*(.+)", "negotiated_cipher"),
         # --- 키 교환 그룹 ---
         (r"Key Group\s*:\s*(.+)", "key_exchange_actual"),
+        (r"^Group\s*:\s*(.+)", "key_exchange_actual"),
         (r"Negotiated TLS[\d.]+ group\s*:\s*(.+)", "key_exchange_actual"),
         (r"Server Temp Key\s*:\s*(.+)", "key_exchange_actual"),
         (r"Peer Temp Key\s*:\s*(.+)", "key_exchange_actual"),
@@ -319,10 +320,17 @@ def parse_verify_tls_output(output: str) -> dict:
     # "판정:" 패턴은 마지막 매칭을 사용 (Stage 3에서 최종 판정 라인 캡처)
     judgement_matches = re.findall(r"판정\s*:\s*(.+)", output)
     if judgement_matches:
-        # 마지막 판정 라인이 최종 결과 (Stage 3: "PQC 연결 성공" → "Stage 3 - PQC 강제 적용")
         final_judgement = judgement_matches[-1].strip()
         if final_judgement.lower() != "unknown":
             result["verify_tls_judgement"] = final_judgement
+
+    # tls_check.sh 형식: "[PASS] Stage 2 policy satisfied." / "[FAIL] ..."
+    if "verify_tls_judgement" not in result:
+        if re.search(r"\[PASS\].*Stage\s*(\d+)", output):
+            m = re.search(r"\[PASS\].*Stage\s*(\d+)", output)
+            result["verify_tls_judgement"] = f"Stage {m.group(1)} - policy satisfied"
+        elif re.search(r"\[FAIL\]", output):
+            result["verify_tls_judgement"] = "fail"
 
     return result
 

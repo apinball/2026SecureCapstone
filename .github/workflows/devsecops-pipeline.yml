@@ -210,6 +210,8 @@ jobs:
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
+          echo "[DEBUG] pqc-proxy 컨테이너 로그:"
+          docker logs pqc-proxy 2>&1 | head -20
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 
       - name: 10. CBOM 명세서 생성 및 리포팅

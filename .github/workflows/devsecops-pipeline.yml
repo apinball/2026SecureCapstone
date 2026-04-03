@@ -216,28 +216,24 @@ jobs:
           echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
           docker logs pqc-proxy 2>&1
 
-          echo "[DEBUG] tls-tester OQS 그룹 목록:"
-          docker exec tls-tester /opt/oqssa/bin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || true
-          docker exec tls-tester /opt/oqssa/bin/openssl ecparam -list_curves 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || true
+          echo "[DEBUG] pqc-proxy nginx 빌드 정보 (OQS OpenSSL 버전):"
+          docker exec pqc-proxy nginx -V 2>&1 | head -5 || true
 
-          echo "[DEBUG] ClientHello 내 key_share 그룹 확인 (-msg 출력):"
-          docker exec tls-tester /opt/oqssa/bin/openssl s_client \
-            -connect proxy-server:443 \
-            -groups X25519MLKEM768:x25519 \
-            -no_tls1 -no_tls1_1 \
-            -msg 2>&1 </dev/null \
-            | grep -iE "named group|key_share|HelloRetry|x25519mlkem|mlkem|supported_group" | head -30 || true
+          echo "[DEBUG] pqc-proxy 내부 OQS 그룹 목록:"
+          docker exec pqc-proxy find /opt /usr/local -name "openssl" -type f 2>/dev/null | head -5 || true
+          docker exec pqc-proxy /opt/nginx/sbin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || \
+          docker exec pqc-proxy /opt/openssl/bin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || \
+          docker exec pqc-proxy sh -c 'LD_LIBRARY_PATH=/opt/nginx/lib /opt/nginx/sbin/openssl list -kem-algorithms 2>&1' | grep -iE "mlkem|kyber|x25519" | head -20 || true
 
           echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \
           docker exec pqc-proxy cat /etc/nginx/nginx.conf 2>/dev/null || true
 
-          echo "[DEBUG] X25519MLKEM768 전용 연결 (fallback 없음 — 서버 지원 여부 확인):"
+          echo "[DEBUG] X25519MLKEM768 전용 연결 (full output):"
           docker exec tls-tester /opt/oqssa/bin/openssl s_client \
             -connect proxy-server:443 \
             -groups X25519MLKEM768 \
-            -no_tls1 -no_tls1_1 2>&1 </dev/null \
-            | grep -E "CONNECTED|alert|error|Cipher|Protocol|Negotiated|Temp Key|MLKEM|mlkem|HelloRetry" | head -15 || true
+            -no_tls1 -no_tls1_1 2>&1 </dev/null || true
 
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 

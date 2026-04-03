@@ -216,12 +216,15 @@ jobs:
           echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
           docker logs pqc-proxy 2>&1
 
-          echo "[DEBUG] pqc-proxy oqsprovider.so 위치:"
-          timeout 10 docker exec pqc-proxy find /opt -name "oqsprovider.so" 2>/dev/null || true
+          echo "[DEBUG] nginx 컨테이너 openssl provider 로딩 확인:"
+          timeout 10 docker exec pqc-proxy sh -c \
+            'OPENSSL_CONF=/opt/openssl/.openssl/ssl/openssl.cnf /opt/openssl/.openssl/bin/openssl list -kem-algorithms 2>&1' \
+            | grep -iE "mlkem|kyber|x25519" | head -20 || true
 
-          echo "[DEBUG] /opt/openssl 디렉토리 구조:"
-          timeout 10 docker exec pqc-proxy find /opt/openssl -maxdepth 4 -type f -name "*.cnf" 2>/dev/null || true
-          timeout 10 docker exec pqc-proxy find /opt/openssl -maxdepth 4 -type d 2>/dev/null || true
+          echo "[DEBUG] nginx 컨테이너 openssl group 목록:"
+          timeout 10 docker exec pqc-proxy sh -c \
+            'OPENSSL_CONF=/opt/openssl/.openssl/ssl/openssl.cnf /opt/openssl/.openssl/bin/openssl list -providers 2>&1' \
+            | head -20 || true
 
           echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \

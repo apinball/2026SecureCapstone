@@ -71,7 +71,7 @@ echo ""
 # Parse negotiated values
 PROTOCOL=$(grep -E "Protocol version|Protocol\s*:" "$TMPFILE" | grep -v "No client" | awk '{print $NF}' | head -1)
 CIPHER=$(grep -E "Ciphersuite|Cipher is" "$TMPFILE" | awk '{print $NF}' | head -1)
-GROUP=$(grep -E "Negotiated TLS1.3 group|Server Temp Key|Peer Temp Key" "$TMPFILE" | cut -d: -f2- | tr -d ' ' | awk -F',' '{print $1}' | head -1)
+GROUP=$(grep -iE "Negotiated TLS1.3 group|Server Temp Key|Peer Temp Key|key exchange group|NamedGroup|SupportedGroup" "$TMPFILE" | cut -d: -f2- | tr -d ' ' | awk -F',' '{print $1}' | head -1)
 
 # Handle empty values
 PROTOCOL=${PROTOCOL:-Unknown}

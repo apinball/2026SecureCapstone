@@ -199,8 +199,12 @@ jobs:
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
           TLS_STAGE=${{ env.STAGE }} docker compose build
           TLS_STAGE=${{ env.STAGE }} docker compose up -d
-          echo "서비스 시작 대기 중 (15초)..."
-          sleep 15
+          echo "pqc-proxy healthcheck 대기 중..."
+          timeout 60 sh -c \
+            'until [ "$(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)" = "healthy" ]; do
+               echo "  상태: $(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)"; sleep 3;
+             done'
+          echo "pqc-proxy 준비 완료"
           docker compose ps
 
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)

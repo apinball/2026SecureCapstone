@@ -1,12 +1,12 @@
-#!/bin/bash
-# gen-certs.sh — TLS 인증서 생성 스크립트
+#!/bin/sh
+# gen-certs.sh — 로컬 테스트용 TLS 인증서 생성 스크립트
 #
 # Stage 1/2: RSA-2048 인증서 (시스템 openssl)
 # Stage 3:   Dilithium3 인증서 (OQS-OpenSSL, Docker 필요)
 #
-# 사용법: bash nginx/gen-certs.sh
-# 생성 위치: /etc/nginx/certs/ (컨테이너 내부) → 빌드 시 자동 생성됨
-#            로컬 테스트용: nginx/certs/
+# 사용법: sh nginx/gen-certs.sh
+# 생성 위치: nginx/certs/ (로컬 테스트용)
+# 참고: 컨테이너 내부 인증서는 Dockerfile 빌드 시 자동 생성됨
 
 set -e
 

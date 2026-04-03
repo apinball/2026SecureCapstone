@@ -40,10 +40,6 @@ else
     exit 1
 fi
 
-# 디버그: openssl 버전 및 경로 확인
-echo "[DEBUG] openssl path: $(which openssl 2>/dev/null || echo 'not found')"
-echo "[DEBUG] openssl version: $(openssl version 2>/dev/null || echo 'not found')"
-
 # Connect and get TLS negotiation result
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT INT TERM
@@ -55,10 +51,6 @@ openssl s_client \
     2>&1 </dev/null | tee "$TMPFILE"
 
 OPENSSL_EXIT=${PIPESTATUS[0]}
-
-echo "[DEBUG] === RAW OPENSSL OUTPUT ==="
-cat "$TMPFILE"
-echo "[DEBUG] === END RAW OUTPUT ==="
 
 # Fail if connection failed
 if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -qE "Protocol version|Protocol\s*:" "$TMPFILE"; then

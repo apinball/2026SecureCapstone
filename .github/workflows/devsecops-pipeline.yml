@@ -212,12 +212,10 @@ jobs:
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
           echo "[DEBUG] pqc-proxy 컨테이너 로그:"
           docker logs pqc-proxy 2>&1 | head -20
-          echo "[DEBUG] pqc-proxy openssl 위치 및 버전:"
-          docker exec pqc-proxy sh -c 'which openssl; openssl version' 2>/dev/null || true
-          echo "[DEBUG] pqc-proxy openssl 전체 그룹 목록 (상위 20개):"
-          docker exec pqc-proxy sh -c 'openssl list -groups 2>/dev/null | head -20' || true
-          echo "[DEBUG] pqc-proxy X25519MLKEM768 지원 여부:"
-          docker exec pqc-proxy sh -c 'openssl s_client -connect localhost:443 -groups X25519MLKEM768:x25519 2>&1 </dev/null | head -5' || true
+          echo "[DEBUG] x25519_kyber768 (구버전 이름) 시도:"
+          docker exec tls-tester /opt/oqssa/bin/openssl s_client \
+            -connect proxy-server:443 -groups x25519_kyber768:x25519 \
+            -no_tls1 -no_tls1_1 2>&1 </dev/null | grep -E "Server Temp Key|Negotiated|Cipher|kyber|mlkem|MLKEM|Group" | head -10 || true
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 
       - name: 10. CBOM 명세서 생성 및 리포팅

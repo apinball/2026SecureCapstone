@@ -40,6 +40,10 @@ else
     exit 1
 fi
 
+# 디버그: openssl 버전 및 경로 확인
+echo "[DEBUG] openssl path: $(which openssl 2>/dev/null || echo 'not found')"
+echo "[DEBUG] openssl version: $(openssl version 2>/dev/null || echo 'not found')"
+
 # Connect and get TLS negotiation result
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT INT TERM

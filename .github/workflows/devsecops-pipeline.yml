@@ -210,12 +210,25 @@ jobs:
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
-          echo "[DEBUG] pqc-proxy 컨테이너 로그:"
-          docker logs pqc-proxy 2>&1 | head -20
-          echo "[DEBUG] x25519_kyber768 (구버전 이름) 시도:"
+
+          echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
+          docker logs pqc-proxy 2>&1
+
+          echo "[DEBUG] tls-tester OQS 그룹 목록:"
+          docker exec tls-tester /opt/oqssa/bin/openssl list -kem-algorithms 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || true
+          docker exec tls-tester /opt/oqssa/bin/openssl ecparam -list_curves 2>&1 | grep -iE "mlkem|kyber|x25519" | head -20 || true
+
+          echo "[DEBUG] ClientHello 내 key_share 그룹 확인 (-msg 출력):"
           docker exec tls-tester /opt/oqssa/bin/openssl s_client \
-            -connect proxy-server:443 -groups x25519_kyber768:x25519 \
-            -no_tls1 -no_tls1_1 2>&1 </dev/null | grep -E "Server Temp Key|Negotiated|Cipher|kyber|mlkem|MLKEM|Group" | head -10 || true
+            -connect proxy-server:443 \
+            -groups X25519MLKEM768:x25519 \
+            -no_tls1 -no_tls1_1 \
+            -msg 2>&1 </dev/null \
+            | grep -iE "named group|key_share|HelloRetry|x25519mlkem|mlkem|supported_group" | head -30 || true
+
+          echo "[DEBUG] ssl_conf_command 적용 확인 (nginx -T):"
+          docker exec pqc-proxy nginx -T 2>&1 | grep -iE "group|ecdh|conf_command|ssl_" | head -20 || true
+
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 
       - name: 10. CBOM 명세서 생성 및 리포팅

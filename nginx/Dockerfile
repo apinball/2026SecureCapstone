@@ -11,20 +11,10 @@ RUN apk add --no-cache openssl curl && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes
 
-# oqsprovider.so 위치 탐색 후 openssl.cnf에 로드 설정 추가
-RUN OQS_PROV=$(find / -name "oqsprovider.so" 2>/dev/null | head -1) && \
-    echo "oqsprovider.so: $OQS_PROV" && \
-    if [ -n "$OQS_PROV" ]; then \
-        SSL_CONF=$(find /opt /usr/local -name "openssl.cnf" 2>/dev/null | head -1) && \
-        echo "openssl.cnf: $SSL_CONF" && \
-        if [ -n "$SSL_CONF" ]; then \
-            printf '\n[provider_sect]\ndefault = default_sect\noqsprovider = oqs_sect\n\n[default_sect]\nactivate = 1\n\n[oqs_sect]\nmodule = %s\nactivate = 1\n' "$OQS_PROV" >> "$SSL_CONF" && \
-            echo "OPENSSL_CONF=$SSL_CONF" >> /etc/environment && \
-            echo "[oqsprovider] openssl.cnf 설정 완료: $SSL_CONF"; \
-        fi; \
-    else \
-        echo "[WARN] oqsprovider.so not found — OQS groups may not be available"; \
-    fi
+# OQS provider 경로 확인 (디버그용)
+RUN find / -name "oqsprovider.so" 2>/dev/null && \
+    find /opt /usr/local -name "openssl.cnf" 2>/dev/null && \
+    find /opt /usr/local -name "openssl" -type f 2>/dev/null | head -5
 
 # 설정 파일을 컨테이너 안으로 복사
 COPY nginx.conf /opt/nginx/nginx-conf/nginx.conf

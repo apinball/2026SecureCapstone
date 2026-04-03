@@ -11,8 +11,8 @@ RUN apk add --no-cache openssl curl && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes
 
-# oqsprovider 활성화: openssl.cnf에 provider 설정 주입
-COPY openssl-oqs.cnf /opt/openssl/.openssl/ssl/openssl.cnf
+# OQS 빌드 정보 확인
+RUN nginx -V 2>&1 | head -5 || true
 
 # 설정 파일을 컨테이너 안으로 복사
 COPY nginx.conf /opt/nginx/nginx-conf/nginx.conf

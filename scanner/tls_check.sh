@@ -56,6 +56,10 @@ openssl s_client \
 
 OPENSSL_EXIT=${PIPESTATUS[0]}
 
+echo "[DEBUG] === RAW OPENSSL OUTPUT ==="
+cat "$TMPFILE"
+echo "[DEBUG] === END RAW OUTPUT ==="
+
 # Fail if connection failed
 if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -qE "Protocol version|Protocol\s*:" "$TMPFILE"; then
     echo "[ERROR] TLS connection to $HOST:$PORT failed"

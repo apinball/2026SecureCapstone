@@ -216,15 +216,16 @@ jobs:
           echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
           docker logs pqc-proxy 2>&1
 
-          echo "[DEBUG] nginx 컨테이너 openssl provider 로딩 확인:"
-          timeout 10 docker exec pqc-proxy sh -c \
-            'OPENSSL_CONF=/opt/openssl/.openssl/ssl/openssl.cnf /opt/openssl/.openssl/bin/openssl list -kem-algorithms 2>&1' \
-            | grep -iE "mlkem|kyber|x25519" | head -20 || true
+          echo "[DEBUG] nginx 컨테이너 내 openssl 바이너리 확인:"
+          timeout 10 docker exec pqc-proxy ls -la /opt/openssl/.openssl/bin/ 2>&1 || true
 
-          echo "[DEBUG] nginx 컨테이너 openssl group 목록:"
+          echo "[DEBUG] nginx 내부 openssl 지원 groups (전체):"
           timeout 10 docker exec pqc-proxy sh -c \
-            'OPENSSL_CONF=/opt/openssl/.openssl/ssl/openssl.cnf /opt/openssl/.openssl/bin/openssl list -providers 2>&1' \
-            | head -20 || true
+            '/opt/openssl/.openssl/bin/openssl list -tls-groups 2>&1' | head -40 || true
+
+          echo "[DEBUG] 위 실패 시 다른 경로 시도:"
+          timeout 10 docker exec pqc-proxy sh -c \
+            'find /opt -name openssl -type f 2>/dev/null | head -5 | xargs -I{} {} list -tls-groups 2>&1' | head -40 || true
 
           echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \

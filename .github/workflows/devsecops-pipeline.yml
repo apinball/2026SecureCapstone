@@ -232,11 +232,12 @@ jobs:
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \
           docker exec pqc-proxy cat /etc/nginx/nginx.conf 2>/dev/null || true
 
-          echo "[DEBUG] X25519MLKEM768 전용 연결 (full output):"
-          docker exec tls-tester /opt/oqssa/bin/openssl s_client \
+          echo "[DEBUG] X25519MLKEM768 전용 연결:"
+          timeout 10 docker exec tls-tester /opt/oqssa/bin/openssl s_client \
             -connect proxy-server:443 \
             -groups X25519MLKEM768 \
-            -no_tls1 -no_tls1_1 2>&1 </dev/null || true
+            -no_tls1 -no_tls1_1 2>&1 </dev/null \
+            | grep -E "CONNECTED|Cipher|Protocol|Temp Key|MLKEM|Group|alert|error" | head -10 || true
 
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 

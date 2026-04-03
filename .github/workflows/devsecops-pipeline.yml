@@ -216,16 +216,21 @@ jobs:
           echo "[DEBUG] pqc-proxy 컨테이너 로그 (전체):"
           docker logs pqc-proxy 2>&1
 
-          echo "[DEBUG] nginx 컨테이너 내 openssl 바이너리 확인:"
-          timeout 10 docker exec pqc-proxy ls -la /opt/openssl/.openssl/bin/ 2>&1 || true
+          echo "[DEBUG] ServerHello key_share code point (hex dump):"
+          timeout 10 docker exec tls-tester /opt/oqssa/bin/openssl s_client \
+            -connect proxy-server:443 \
+            -groups X25519MLKEM768:x25519 \
+            -no_tls1 -no_tls1_1 \
+            -msg 2>&1 </dev/null \
+            | grep -A2 "ServerHello\|server_hello\|key_share\|group" | head -40 || true
 
-          echo "[DEBUG] nginx 내부 openssl 지원 groups (전체):"
-          timeout 10 docker exec pqc-proxy sh -c \
-            '/opt/openssl/.openssl/bin/openssl list -tls-groups 2>&1' | head -40 || true
-
-          echo "[DEBUG] 위 실패 시 다른 경로 시도:"
-          timeout 10 docker exec pqc-proxy sh -c \
-            'find /opt -name openssl -type f 2>/dev/null | head -5 | xargs -I{} {} list -tls-groups 2>&1' | head -40 || true
+          echo "[DEBUG] ServerHello raw (hex, key_share extension code point 확인):"
+          timeout 10 docker exec tls-tester /opt/oqssa/bin/openssl s_client \
+            -connect proxy-server:443 \
+            -groups X25519MLKEM768:x25519 \
+            -no_tls1 -no_tls1_1 \
+            -debug 2>&1 </dev/null \
+            | grep -E "^[0-9a-f]{4} - " | head -60 || true
 
           echo "[DEBUG] 컨테이너 내 실제 nginx.conf 내용:"
           docker exec pqc-proxy cat /opt/nginx/nginx-conf/nginx.conf 2>/dev/null || \

@@ -222,21 +222,30 @@ jobs:
             --stage ${{ env.STAGE }} \
             --out artifacts/cbom_stage${{ env.STAGE }}.json
 
-          # 고전 암호 탐지 결과를 CBOM에 통합
+          # 고전 암호 탐지 결과를 CycloneDX CBOM properties에 통합
           python3 -c "
           import json, os
+
           cbom_path = 'artifacts/cbom_stage${{ env.STAGE }}.json'
           findings_path = 'artifacts/crypto-findings.json'
 
           with open(cbom_path) as f:
               cbom = json.load(f)
 
-          # 고전 암호 탐지 결과 추가
+          def set_property(bom, name, value):
+              rendered = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+              props = bom.setdefault('properties', [])
+              for p in props:
+                  if p.get('name') == name:
+                      p['value'] = rendered
+                      return
+              props.append({'name': name, 'value': rendered})
+
           if os.path.exists(findings_path):
               with open(findings_path) as f:
                   findings = json.load(f)
               results = findings.get('results', [])
-              cbom['classical_crypto_findings'] = [
+              crypto_findings = [
                   {
                       'file': r['path'],
                       'line': r['start']['line'],
@@ -247,21 +256,23 @@ jobs:
                   }
                   for r in results
               ]
-              cbom['migration_summary'] = {
+              set_property(cbom, 'securecapstone:classical_crypto_findings', crypto_findings)
+              set_property(cbom, 'securecapstone:migration_summary', {
                   'auto_migrated': 'nginx TLS configuration',
                   'manual_action_required': len(results),
                   'status': 'PARTIAL' if results else 'COMPLETE'
-              }
+              })
           else:
-              cbom['migration_summary'] = {
+              set_property(cbom, 'securecapstone:classical_crypto_findings', [])
+              set_property(cbom, 'securecapstone:migration_summary', {
                   'auto_migrated': 'nginx TLS configuration',
                   'manual_action_required': 0,
                   'status': 'COMPLETE'
-              }
+              })
 
           with open(cbom_path, 'w') as f:
               json.dump(cbom, f, indent=2, ensure_ascii=False)
-          print('[DONE] CBOM에 마이그레이션 결과 통합 완료')
+          print('[DONE] CycloneDX CBOM properties에 마이그레이션 결과 통합 완료')
           "
 
           # 이전 실행 CBOM 다운로드 후 마이그레이션 진척도 비교
@@ -309,8 +320,8 @@ jobs:
           GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
-          PROGRESS=$(jq -r '.migration_progress.status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
-          MANUAL=$(jq -r '.migration_summary.manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | fromjson | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | fromjson | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
 
           icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
 
@@ -353,9 +364,18 @@ jobs:
             let findings = 0, progress = 'N/A', manual = 'N/A';
             try {
               const cbom = JSON.parse(fs.readFileSync(`artifacts/cbom_stage${stage}.json`, 'utf8'));
-              findings = cbom.classical_crypto_findings?.length || 0;
-              progress = cbom.migration_progress?.status || 'N/A';
-              manual = cbom.migration_summary?.manual_action_required ?? 'N/A';
+              const props = cbom.properties || [];
+              const getProp = (name) => {
+                const p = props.find(x => x.name === name);
+                if (!p) return null;
+                try { return JSON.parse(p.value); } catch { return p.value; }
+              };
+              const findingsData = getProp('securecapstone:classical_crypto_findings');
+              findings = Array.isArray(findingsData) ? findingsData.length : 0;
+              const progressData = getProp('securecapstone:migration_progress');
+              progress = progressData?.status || 'N/A';
+              const summaryData = getProp('securecapstone:migration_summary');
+              manual = summaryData?.manual_action_required ?? 'N/A';
             } catch(e) {}
 
             const icon = (r) => r === 'pass' ? '✅' : r === 'fail' ? '❌' : '⚠️';

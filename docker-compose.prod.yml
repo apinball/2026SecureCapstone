@@ -6,6 +6,8 @@ services:
       - "80:80"
       - "443:443"
     restart: always
+    environment:
+      - TLS_STAGE=${TLS_STAGE:-1}
     depends_on:
       - backend-api
     networks:

@@ -1,0 +1,13 @@
+title = "2026SecureCapstone Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "PQC algorithm names are not secrets — false positives from generic-api-key rule"
+regexes = [
+    '''X25519MLKEM768''',
+    '''p521_mlkem1024''',
+    '''p384_mlkem768''',
+    '''X25519KYBER768''',
+]

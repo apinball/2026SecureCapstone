@@ -1,0 +1,46 @@
+rules:
+  # ── 탐지 + 자동 수정 (nginx autofix) ─────────────────────────────────────
+
+  - id: nginx-weak-tls-protocol-10
+    message: "TLSv1.0 detected in ssl_protocols — auto-migrating to TLSv1.3 only"
+    languages: [generic]
+    severity: ERROR
+    patterns:
+      - pattern: ssl_protocols ... TLSv1; ...
+      - pattern-not: ssl_protocols ... TLSv1.2 ...
+      - pattern-not: ssl_protocols ... TLSv1.3 ...
+    fix: "ssl_protocols TLSv1.3;"
+
+  - id: nginx-weak-tls-protocol-11
+    message: "TLSv1.1 detected in ssl_protocols — auto-migrating to TLSv1.3 only"
+    languages: [generic]
+    severity: ERROR
+    patterns:
+      - pattern: ssl_protocols ... TLSv1.1 ...
+      - pattern-not: ssl_protocols ... TLSv1.2 ...
+      - pattern-not: ssl_protocols ... TLSv1.3 ...
+    fix: "ssl_protocols TLSv1.3;"
+
+  - id: nginx-weak-ssl-ciphers-rc4
+    message: "Weak cipher RC4 detected in ssl_ciphers — removing"
+    languages: [generic]
+    severity: ERROR
+    patterns:
+      - pattern: ssl_ciphers ... RC4 ...
+
+  - id: nginx-weak-ssl-ciphers-des
+    message: "Weak cipher DES detected in ssl_ciphers — removing"
+    languages: [generic]
+    severity: ERROR
+    patterns:
+      - pattern: ssl_ciphers ... DES ...
+
+  - id: nginx-classical-ecdh-curve
+    message: "Classical key exchange detected in ssl_ecdh_curve — auto-migrating to Hybrid PQC (X25519MLKEM768)"
+    languages: [generic]
+    severity: WARNING
+    patterns:
+      - pattern: ssl_ecdh_curve $CURVE;
+      - pattern-not: ssl_ecdh_curve ... mlkem ...
+      - pattern-not: ssl_ecdh_curve ... MLKEM ...
+    fix: "ssl_ecdh_curve X25519MLKEM768:X25519;"

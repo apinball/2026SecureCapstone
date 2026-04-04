@@ -106,11 +106,11 @@ jobs:
             git config user.name "PQC Migration Bot"
             git config user.email "pqc-bot@github-actions.com"
             git add nginx/nginx.conf
-            git commit -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]
-
-            파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여
-            Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+            git commit \
+              -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]" \
+              -m "파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여 Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
+            git push origin HEAD:${{ github.head_ref || github.ref_name }} || \
+              echo "[WARN] Auto-migration push 실패 — 로컬 변경은 유지되며 파이프라인 계속 진행"
 
             echo "STAGE=${NEW_STAGE}" >> $GITHUB_ENV
             echo "[DONE] Stage ${NEW_STAGE}로 마이그레이션 완료"
@@ -184,7 +184,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scan-results-stage${{ env.STAGE }}
+          name: scan-results-stage${{ env.STAGE }}-run${{ github.run_number }}
           path: |
             scanner/results/
             artifacts/

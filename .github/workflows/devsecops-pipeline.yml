@@ -109,7 +109,7 @@ jobs:
 
             파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여
             Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
-            git push origin HEAD:${{ github.ref_name }}
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
 
             echo "STAGE=${NEW_STAGE}" >> $GITHUB_ENV
             echo "[DONE] Stage ${NEW_STAGE}로 마이그레이션 완료"

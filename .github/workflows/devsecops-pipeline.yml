@@ -211,16 +211,36 @@ jobs:
           docker compose ps
 
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
+        id: tls_validate
+        continue-on-error: true
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
 
       - name: 10. CBOM 명세서 생성 및 리포팅
+        id: cbom_report
+        if: always()
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
-          python policy/cbom_gen.py \
-            --stage ${{ env.STAGE }} \
-            --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+          CBOM_RC=0
+          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json || CBOM_RC=$?
+
+          echo "cbom_gen_exit_code=${CBOM_RC}" >> "$GITHUB_OUTPUT"
+
+          if [ "$CBOM_RC" -eq 2 ]; then
+            echo "[WARN] cbom_gen.py 동적 분석 실패(exit 2) — 부분 CBOM으로 후속 리포팅 계속 진행"
+          elif [ "$CBOM_RC" -eq 3 ]; then
+            echo "[WARN] cbom_gen.py 교차 검증 불일치(exit 3) — 생성된 CBOM으로 후속 리포팅 계속 진행"
+          elif [ "$CBOM_RC" -ne 0 ]; then
+            echo "[FATAL] cbom_gen.py 비정상 종료 (exit ${CBOM_RC})"
+            exit "$CBOM_RC"
+          fi
+
+          if [ ! -f "artifacts/cbom_stage${{ env.STAGE }}.json" ]; then
+            echo "[FATAL] CBOM 출력 파일이 생성되지 않았습니다."
+            exit 1
+          fi
 
           # 고전 암호 탐지 결과를 CycloneDX CBOM properties에 통합
           python3 -c "
@@ -320,8 +340,8 @@ jobs:
           GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
-          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | fromjson | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
-          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | fromjson | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | (try fromjson catch {}) | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | (try fromjson catch {}) | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
 
           icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
 
@@ -342,6 +362,28 @@ jobs:
           - 수동 조치 필요: **${MANUAL}건**
           - 진척도: **${PROGRESS}**
           SUMMARY
+
+      - name: 동적 검증/CBOM 상태 최종 반영
+        if: always()
+        run: |
+          FAIL=0
+
+          if [ "${{ steps.tls_validate.outcome }}" = "failure" ]; then
+            echo "[FATAL] Step 9 동적 TLS 검증 실패"
+            FAIL=1
+          fi
+
+          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ]; then
+            echo "[FATAL] cbom_gen.py 동적 분석 실패(exit 2)"
+            FAIL=1
+          elif [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "3" ]; then
+            echo "[FATAL] cbom_gen.py 교차 검증 불일치(exit 3)"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: PR 보안 리포트 코멘트
         if: always() && github.event_name == 'pull_request'

@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: 2. Stage 감지 및 nginx.conf 준비
         run: |

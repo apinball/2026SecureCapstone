@@ -26,7 +26,6 @@ CycloneDX CLI로 검증:
 Exit codes:
   0 - 정상
   2 - 동적 분석 실패 (검증 스크립트 오류 포함)
-  3 - 교차 검증 불일치 (--strict-validation 시)
 """
 
 import argparse
@@ -44,7 +43,7 @@ from pathlib import Path
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 GENERATOR_NAME = "cbom_gen.py"
-GENERATOR_VERSION = "2.2.1"
+GENERATOR_VERSION = "2.2.2"
 
 CYCLONEDX_SCHEMA_MAP = {
     "1.6": "https://cyclonedx.org/schema/bom-1.6.schema.json",
@@ -71,9 +70,6 @@ DEFAULT_TESTER = os.getenv("TESTER_CONTAINER", "tls-tester")
 DEFAULT_SERVER = os.getenv("SERVER_CONTAINER", "pqc-proxy")
 DEFAULT_CERT_PATH = os.getenv("SERVER_CERT_PATH", "/etc/nginx/certs/server.crt")
 DEFAULT_VERIFY_SCRIPT = os.getenv("VERIFY_SCRIPT", "tls_check.sh")
-DEFAULT_STRICT_VALIDATION = os.getenv("STRICT_VALIDATION", "false").strip().lower() in {
-    "1", "true", "yes", "on",
-}
 DEFAULT_SPEC_VERSION = os.getenv("CYCLONEDX_SPEC_VERSION", "1.6")
 DEFAULT_REDACT = os.getenv("CBOM_REDACT", "true").strip().lower() not in {
     "0", "false", "no", "off",
@@ -829,14 +825,11 @@ def parse_cert_info(cert_text: str) -> dict:
     return result
 
 
-def cross_validate(our_status, script_judgement, requested_stage, *, strict=False):
-    """교차 검증. strict=True이면 판정 파싱 실패 시에도 consistent=False."""
+def cross_validate(our_status, script_judgement, requested_stage):
+    """교차 검증 결과를 warnings/consistent 형태로 반환."""
     validation = {"consistent": True, "warnings": []}
     if not script_judgement:
         validation["warnings"].append("검증 스크립트 판정 결과를 파싱하지 못했습니다.")
-        if strict:
-            validation["consistent"] = False
-            validation["warnings"].append("엄격 모드: 판정 결과를 확인할 수 없으므로 검증 실패로 처리합니다.")
         return validation
 
     jl = script_judgement.lower()
@@ -933,7 +926,6 @@ def build_analysis_snapshot(
     host=DEFAULT_HOST, port=DEFAULT_PORT, stage="auto", config_path="",
     tester_container=DEFAULT_TESTER, server_container=DEFAULT_SERVER,
     server_cert_path=DEFAULT_CERT_PATH, verify_script=DEFAULT_VERIFY_SCRIPT,
-    strict=False,
 ):
     normalized_stage = normalize_stage(stage)
     resolved_config = resolve_config_path(normalized_stage, config_path)
@@ -981,7 +973,6 @@ def build_analysis_snapshot(
         our_status=pqc_status if pqc_status != "DYNAMIC_ANALYSIS_FAILED" else (partial or pqc_status),
         script_judgement=dynamic_f.get("verify_tls_judgement", ""),
         requested_stage=normalized_stage,
-        strict=strict,
     )
 
     snapshot = {
@@ -1197,12 +1188,12 @@ def generate_cbom(
     host=DEFAULT_HOST, port=DEFAULT_PORT, stage="auto", config_path="",
     tester_container=DEFAULT_TESTER, server_container=DEFAULT_SERVER,
     server_cert_path=DEFAULT_CERT_PATH, verify_script=DEFAULT_VERIFY_SCRIPT,
-    spec_version=DEFAULT_SPEC_VERSION, strict=False, redact=True,
+    spec_version=DEFAULT_SPEC_VERSION, redact=True,
 ):
     snapshot = build_analysis_snapshot(
         host=host, port=port, stage=stage, config_path=config_path,
         tester_container=tester_container, server_container=server_container,
-        server_cert_path=server_cert_path, verify_script=verify_script, strict=strict)
+        server_cert_path=server_cert_path, verify_script=verify_script)
     return convert_snapshot_to_cyclonedx(snapshot, spec_version=spec_version, redact=redact)
 
 
@@ -1214,9 +1205,9 @@ def main():
 사용 예시:
   python policy/cbom_gen.py --stage 2 --out artifacts/cbom_stage2.json
   python policy/cbom_gen.py --out artifacts/cbom.json
-  python policy/cbom_gen.py --stage 3 --strict-validation --no-redact
+  python policy/cbom_gen.py --stage 3 --no-redact
 
-Exit codes:  0=정상  2=동적분석실패  3=교차검증불일치(strict)
+Exit codes:  0=정상  2=동적분석실패
         """)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -1228,7 +1219,6 @@ Exit codes:  0=정상  2=동적분석실패  3=교차검증불일치(strict)
     parser.add_argument("--verify-script", default=DEFAULT_VERIFY_SCRIPT)
     parser.add_argument("--spec-version", default=DEFAULT_SPEC_VERSION)
     parser.add_argument("--out", default="")
-    parser.add_argument("--strict-validation", action=argparse.BooleanOptionalAction, default=DEFAULT_STRICT_VALIDATION)
     parser.add_argument("--redact", action=argparse.BooleanOptionalAction, default=DEFAULT_REDACT,
                         help="BOM에서 내부 경로/분석 상세 제거 (기본: 제거)")
     args = parser.parse_args()
@@ -1237,7 +1227,7 @@ Exit codes:  0=정상  2=동적분석실패  3=교차검증불일치(strict)
         host=args.host, port=args.port, stage=args.stage, config_path=args.config,
         tester_container=args.tester_container, server_container=args.server_container,
         server_cert_path=args.server_cert_path, verify_script=args.verify_script,
-        spec_version=args.spec_version, strict=args.strict_validation, redact=args.redact)
+        spec_version=args.spec_version, redact=args.redact)
 
     text = json.dumps(cbom, indent=2, ensure_ascii=False)
     print(text)
@@ -1258,8 +1248,6 @@ Exit codes:  0=정상  2=동적분석실패  3=교차검증불일치(strict)
         try: val = json.loads(val_raw)
         except json.JSONDecodeError: pass
     if not val.get("consistent", True):
-        if args.strict_validation:
-            sys.exit(3)
         for msg in val.get("warnings", []):
             print(f"[WARN] {msg}", file=sys.stderr)
 

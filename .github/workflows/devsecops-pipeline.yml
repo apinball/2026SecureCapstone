@@ -213,9 +213,13 @@ jobs:
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
+          set +e
           docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
+          tls_check_status=$?
+          set -e
           mkdir -p scanner/results
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json
+          exit $tls_check_status
 
       - name: 10. CBOM 명세서 생성 및 리포팅
         run: |

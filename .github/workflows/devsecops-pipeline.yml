@@ -230,8 +230,6 @@ jobs:
 
           if [ "$CBOM_RC" -eq 2 ]; then
             echo "[WARN] cbom_gen.py 동적 분석 실패(exit 2) — 부분 CBOM으로 후속 리포팅 계속 진행"
-          elif [ "$CBOM_RC" -eq 3 ]; then
-            echo "[WARN] cbom_gen.py 교차 검증 불일치(exit 3) — 생성된 CBOM으로 후속 리포팅 계속 진행"
           elif [ "$CBOM_RC" -ne 0 ]; then
             echo "[FATAL] cbom_gen.py 비정상 종료 (exit ${CBOM_RC})"
             exit "$CBOM_RC"
@@ -375,9 +373,6 @@ jobs:
 
           if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ]; then
             echo "[FATAL] cbom_gen.py 동적 분석 실패(exit 2)"
-            FAIL=1
-          elif [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "3" ]; then
-            echo "[FATAL] cbom_gen.py 교차 검증 불일치(exit 3)"
             FAIL=1
           fi
 

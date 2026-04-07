@@ -218,7 +218,7 @@ jobs:
           tls_check_status=$?
           set -e
           mkdir -p scanner/results
-          docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json
+          docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
       - name: 10. CBOM 명세서 생성 및 리포팅
@@ -319,7 +319,13 @@ jobs:
           PROGRESS=$(jq -r '.migration_progress.status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
           MANUAL=$(jq -r '.migration_summary.manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
 
-          icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
+          icon() {
+            case "$1" in
+              pass) echo "✅" ;;
+              fail) echo "❌" ;;
+              *)    echo "⚠️" ;;
+            esac
+          }
 
           cat >> $GITHUB_STEP_SUMMARY << SUMMARY
           ## DevSecOps PQC Pipeline — Stage ${STAGE}

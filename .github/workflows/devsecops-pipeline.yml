@@ -375,6 +375,26 @@ jobs:
           - 진척도: **${PROGRESS}**
           SUMMARY
 
+      - name: 11. HTML 대시보드 리포트 생성
+        if: always()
+        run: |
+          mkdir -p artifacts
+          # scan-summary.json은 artifacts/ 복사본이 없는 경우에도 scanner/results/ 쪽을 참조할 수 있도록 보정
+          if [ ! -f artifacts/scan-summary.json ] && [ -f scanner/results/scan-summary.json ]; then
+            cp scanner/results/scan-summary.json artifacts/scan-summary.json || true
+          fi
+          python3 dashboard/generate_report.py \
+            --stage "${{ env.STAGE }}" \
+            --run-number "${{ github.run_number }}" \
+            --out "artifacts/pipeline-dashboard-stage${{ env.STAGE }}-run${{ github.run_number }}.html"
+
+      - name: 11-1. HTML 대시보드 아티팩트 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-dashboard-stage${{ env.STAGE }}-run${{ github.run_number }}
+          path: artifacts/pipeline-dashboard-stage${{ env.STAGE }}-run${{ github.run_number }}.html
+
       - name: 동적 검증/CBOM 상태 최종 반영
         if: always()
         run: |

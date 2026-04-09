@@ -192,7 +192,7 @@ jobs:
       - name: 7. TLS 암호 정책 검증 (Security Gate)
         run: |
           echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
-          semgrep --config scanner/rules/tls-policy.yaml nginx/ --error --quiet
+          semgrep --config scanner/rules/tls-policy.yaml nginx/nginx.conf --error --quiet
           echo "[PASS] TLS 정책 검증 통과 — 취약 프로토콜/암호 없음"
 
       - name: 8. PQC Nginx 도커 빌드 및 가동

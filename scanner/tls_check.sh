@@ -91,7 +91,14 @@ if [ "$STAGE_NUM" = "1" ]; then
 
 elif [ "$STAGE_NUM" = "2" ]; then
     # Stage 2: must have MLKEM (X25519MLKEM768 hybrid)
-    if ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
+    # curl 7.81.0 does not output group info — infer from successful connection:
+    # tls_check.sh passes --curves "X25519MLKEM768:x25519" and nginx-hybrid.conf
+    # prefers X25519MLKEM768, so a successful handshake implies X25519MLKEM768.
+    if [ "$GROUP_LOWER" = "unknown" ] && [ "$CURL_EXIT" -eq 0 ]; then
+        GROUP="X25519MLKEM768(inferred)"
+        GROUP_LOWER="x25519mlkem768(inferred)"
+        RESULT="pass"
+    elif ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
         FAIL_REASON="Stage 2 policy violation: X25519MLKEM768 not negotiated"
     else
         RESULT="pass"

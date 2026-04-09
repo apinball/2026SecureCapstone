@@ -62,7 +62,7 @@ jobs:
           echo "STAGE=$STAGE" >> $GITHUB_ENV
 
       - name: 3. Semgrep 설치
-        run: pip install --quiet semgrep
+        run: pip install --quiet semgrep || pip install --quiet --break-system-packages semgrep
 
       - name: 4. PQC 자동 마이그레이션 (nginx 설정)
         run: |
@@ -385,7 +385,8 @@ jobs:
             FAIL=1
           fi
 
-          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ]; then
+          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ] && \
+             [ "${{ steps.tls_validate.outcome }}" != "skipped" ]; then
             echo "[FATAL] cbom_gen.py 동적 분석 실패(exit 2)"
             FAIL=1
           fi

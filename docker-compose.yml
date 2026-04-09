@@ -10,6 +10,12 @@ services:
       - TLS_STAGE=${TLS_STAGE:-1}
     depends_on:
       - backend-api
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost/ -o /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - pqc-network
 
@@ -26,7 +32,9 @@ services:
 
   # 3. 테스터 (Kali Linux)
   test-client:
-    build: ./tester
+    build:
+      context: .
+      dockerfile: tester/Dockerfile
     container_name: tls-tester
     volumes:
       - ./tester/captures:/data

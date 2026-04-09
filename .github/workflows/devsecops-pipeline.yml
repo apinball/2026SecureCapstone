@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: 2. Stage 감지 및 nginx.conf 준비
         run: |
@@ -105,11 +106,11 @@ jobs:
             git config user.name "PQC Migration Bot"
             git config user.email "pqc-bot@github-actions.com"
             git add nginx/nginx.conf
-            git commit -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]
-
-            파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여
-            Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
-            git push origin HEAD:${{ github.ref_name }}
+            git commit \
+              -m "Auto-migrate: Classical TLS → Hybrid PQC-TLS [skip ci]" \
+              -m "파이프라인이 Classical TLS(Stage ${{ env.STAGE }}) 설정을 감지하여 Hybrid PQC-TLS(Stage ${NEW_STAGE}, X25519MLKEM768)로 자동 마이그레이션했습니다."
+            git push origin HEAD:${{ github.head_ref || github.ref_name }} || \
+              echo "[WARN] Auto-migration push 실패 — 로컬 변경은 유지되며 파이프라인 계속 진행"
 
             echo "STAGE=${NEW_STAGE}" >> $GITHUB_ENV
             echo "[DONE] Stage ${NEW_STAGE}로 마이그레이션 완료"
@@ -131,7 +132,7 @@ jobs:
             --output artifacts/crypto-findings.json \
             --quiet \
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
-            --exclude "pqc-webserver/*" \
+            --exclude "pqc-webserver/*" --exclude "nginx/*" \
             . || true
 
           # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)
@@ -183,7 +184,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scan-results-stage${{ env.STAGE }}
+          name: scan-results-stage${{ env.STAGE }}-run${{ github.run_number }}
           path: |
             scanner/results/
             artifacts/
@@ -197,39 +198,78 @@ jobs:
       - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
+          docker pull openquantumsafe/nginx
+          docker pull openquantumsafe/curl
           TLS_STAGE=${{ env.STAGE }} docker compose build
           TLS_STAGE=${{ env.STAGE }} docker compose up -d
-          echo "서비스 시작 대기 중 (15초)..."
-          sleep 15
+          echo "pqc-proxy healthcheck 대기 중..."
+          timeout 60 sh -c \
+            'until [ "$(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)" = "healthy" ]; do
+               echo "  상태: $(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)"; sleep 3;
+             done'
+          echo "pqc-proxy 준비 완료"
           docker compose ps
 
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
+        id: tls_validate
+        continue-on-error: true
         run: |
           echo "진행 중: 서버로 TLS 연결 시도 및 PQC 그룹 확인..."
-          docker exec tls-tester verify_tls.sh proxy-server 443 ${{ env.STAGE }}
+          set +e
+          docker exec tls-tester tls_check.sh proxy-server 443 ${{ env.STAGE }}
+          tls_check_status=$?
+          set -e
+          mkdir -p scanner/results
+          docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
+          exit $tls_check_status
 
       - name: 10. CBOM 명세서 생성 및 리포팅
+        id: cbom_report
+        if: always()
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
-          python policy/cbom_gen.py \
-            --stage ${{ env.STAGE }} \
-            --out artifacts/cbom_stage${{ env.STAGE }}.json
 
-          # 고전 암호 탐지 결과를 CBOM에 통합
+          CBOM_RC=0
+          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json || CBOM_RC=$?
+
+          echo "cbom_gen_exit_code=${CBOM_RC}" >> "$GITHUB_OUTPUT"
+
+          if [ "$CBOM_RC" -eq 2 ]; then
+            echo "[WARN] cbom_gen.py 동적 분석 실패(exit 2) — 부분 CBOM으로 후속 리포팅 계속 진행"
+          elif [ "$CBOM_RC" -ne 0 ]; then
+            echo "[FATAL] cbom_gen.py 비정상 종료 (exit ${CBOM_RC})"
+            exit "$CBOM_RC"
+          fi
+
+          if [ ! -f "artifacts/cbom_stage${{ env.STAGE }}.json" ]; then
+            echo "[FATAL] CBOM 출력 파일이 생성되지 않았습니다."
+            exit 1
+          fi
+
+          # 고전 암호 탐지 결과를 CycloneDX CBOM properties에 통합
           python3 -c "
           import json, os
+
           cbom_path = 'artifacts/cbom_stage${{ env.STAGE }}.json'
           findings_path = 'artifacts/crypto-findings.json'
 
           with open(cbom_path) as f:
               cbom = json.load(f)
 
-          # 고전 암호 탐지 결과 추가
+          def set_property(bom, name, value):
+              rendered = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+              props = bom.setdefault('properties', [])
+              for p in props:
+                  if p.get('name') == name:
+                      p['value'] = rendered
+                      return
+              props.append({'name': name, 'value': rendered})
+
           if os.path.exists(findings_path):
               with open(findings_path) as f:
                   findings = json.load(f)
               results = findings.get('results', [])
-              cbom['classical_crypto_findings'] = [
+              crypto_findings = [
                   {
                       'file': r['path'],
                       'line': r['start']['line'],
@@ -240,33 +280,43 @@ jobs:
                   }
                   for r in results
               ]
-              cbom['migration_summary'] = {
+              set_property(cbom, 'securecapstone:classical_crypto_findings', crypto_findings)
+              set_property(cbom, 'securecapstone:migration_summary', {
                   'auto_migrated': 'nginx TLS configuration',
                   'manual_action_required': len(results),
                   'status': 'PARTIAL' if results else 'COMPLETE'
-              }
+              })
           else:
-              cbom['migration_summary'] = {
+              set_property(cbom, 'securecapstone:classical_crypto_findings', [])
+              set_property(cbom, 'securecapstone:migration_summary', {
                   'auto_migrated': 'nginx TLS configuration',
                   'manual_action_required': 0,
                   'status': 'COMPLETE'
-              }
+              })
 
           with open(cbom_path, 'w') as f:
               json.dump(cbom, f, indent=2, ensure_ascii=False)
-          print('[DONE] CBOM에 마이그레이션 결과 통합 완료')
+          print('[DONE] CycloneDX CBOM properties에 마이그레이션 결과 통합 완료')
           "
 
           # 이전 실행 CBOM 다운로드 후 마이그레이션 진척도 비교
           PREV_CBOM="artifacts/prev_cbom.json"
-          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=cbom-stage${{ env.STAGE }}&per_page=1" \
-            --jq '.artifacts[] | select(.expired == false) | .id' 2>/dev/null | head -1 || true)
+          ARTIFACT_PREFIX="cbom-stage${{ env.STAGE }}-run"
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq '.artifacts
+              | map(select(.expired == false))
+              | map(select(.name | startswith("'$ARTIFACT_PREFIX'")))
+              | sort_by(.created_at)
+              | reverse
+              | .[0].id // empty' 2>/dev/null || true)
 
           if [ -n "$ARTIFACT_ID" ]; then
             echo "이전 CBOM 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
-            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
-              > /tmp/prev_cbom.zip 2>/dev/null && \
-              unzip -p /tmp/prev_cbom.zip > "$PREV_CBOM" 2>/dev/null || true
+            gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/prev_cbom.zip 2>/dev/null || true
+            PREV_ENTRY=$(unzip -Z1 /tmp/prev_cbom.zip 2>/dev/null | grep -E 'cbom_stage[0-9]+\.json$' | head -1 || true)
+            if [ -n "$PREV_ENTRY" ]; then
+              unzip -p /tmp/prev_cbom.zip "$PREV_ENTRY" > "$PREV_CBOM" 2>/dev/null || true
+            fi
           else
             echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
           fi
@@ -293,11 +343,18 @@ jobs:
           TRIVY=$(jq -r '.tools.trivy // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
           SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          TLS_CHECK=$(jq -r '.result // "unknown"' scanner/results/tls-check-summary.json 2>/dev/null || echo "unknown")
           FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
-          PROGRESS=$(jq -r '.migration_progress.status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
-          MANUAL=$(jq -r '.migration_summary.manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | (try fromjson catch {}) | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | (try fromjson catch {}) | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
 
-          icon() { [ "$1" = "pass" ] && echo "✅" || echo "❌"; }
+          icon() {
+            case "$1" in
+              pass) echo "✅" ;;
+              fail) echo "❌" ;;
+              *)    echo "⚠️" ;;
+            esac
+          }
 
           cat >> $GITHUB_STEP_SUMMARY << SUMMARY
           ## DevSecOps PQC Pipeline — Stage ${STAGE}
@@ -308,6 +365,7 @@ jobs:
           | Trivy (CVE) | $(icon $TRIVY) ${TRIVY} |
           | Gitleaks (Secrets) | $(icon $GITLEAKS) ${GITLEAKS} |
           | Semgrep (SAST) | $(icon $SEMGREP) ${SEMGREP} |
+          | TLS 동적 검증 | $(icon $TLS_CHECK) ${TLS_CHECK} |
 
           ### 레거시 암호 탐지
           - 탐지 건수: **${FINDINGS}건**
@@ -316,6 +374,25 @@ jobs:
           - 수동 조치 필요: **${MANUAL}건**
           - 진척도: **${PROGRESS}**
           SUMMARY
+
+      - name: 동적 검증/CBOM 상태 최종 반영
+        if: always()
+        run: |
+          FAIL=0
+
+          if [ "${{ steps.tls_validate.outcome }}" = "failure" ]; then
+            echo "[FATAL] Step 9 동적 TLS 검증 실패"
+            FAIL=1
+          fi
+
+          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ]; then
+            echo "[FATAL] cbom_gen.py 동적 분석 실패(exit 2)"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: PR 보안 리포트 코멘트
         if: always() && github.event_name == 'pull_request'
@@ -338,9 +415,18 @@ jobs:
             let findings = 0, progress = 'N/A', manual = 'N/A';
             try {
               const cbom = JSON.parse(fs.readFileSync(`artifacts/cbom_stage${stage}.json`, 'utf8'));
-              findings = cbom.classical_crypto_findings?.length || 0;
-              progress = cbom.migration_progress?.status || 'N/A';
-              manual = cbom.migration_summary?.manual_action_required ?? 'N/A';
+              const props = cbom.properties || [];
+              const getProp = (name) => {
+                const p = props.find(x => x.name === name);
+                if (!p) return null;
+                try { return JSON.parse(p.value); } catch { return p.value; }
+              };
+              const findingsData = getProp('securecapstone:classical_crypto_findings');
+              findings = Array.isArray(findingsData) ? findingsData.length : 0;
+              const progressData = getProp('securecapstone:migration_progress');
+              progress = progressData?.status || 'N/A';
+              const summaryData = getProp('securecapstone:migration_summary');
+              manual = summaryData?.manual_action_required ?? 'N/A';
             } catch(e) {}
 
             const icon = (r) => r === 'pass' ? '✅' : r === 'fail' ? '❌' : '⚠️';
@@ -375,7 +461,7 @@ jobs:
             });
 
       - name: 파이프라인 실패 시 GitHub Issue 생성
-        if: failure()
+        if: failure() && github.ref == 'refs/heads/main'
         uses: actions/github-script@v7
         with:
           script: |

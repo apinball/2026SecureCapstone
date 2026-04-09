@@ -17,7 +17,7 @@ if [ "$STAGE" = "1" ] || [ "$STAGE" = "ecc" ]; then
 elif [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ]; then
     CURVES="X25519MLKEM768:x25519"
 elif [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
-    CURVES="X25519MLKEM768"
+    CURVES="p521_mlkem1024:p384_mlkem768"
 else
     CURVES=""
 fi
@@ -39,10 +39,17 @@ fi
 
 SSL_LINE=$(grep "SSL connection using" "$TMPFILE" | head -n 1)
 
-# 추출 로직 (불필요한 공백 제거)
-PROTOCOL=$(echo "$SSL_LINE" | awk -F'/' '{print $1}' | grep -oE 'TLSv[0-9.]+')
-CIPHER=$(echo "$SSL_LINE" | awk -F'/' '{print $2}' | tr -d ' ')
-GROUP=$(echo "$SSL_LINE" | awk -F'/' '{print $3}' | tr -d ' ')
+# 추출 로직 (curl 출력 형식 차이를 고려한 fallback 포함)
+PROTOCOL=$(echo "$SSL_LINE" | grep -oE 'TLSv[0-9.]+' | head -n 1)
+CIPHER=$(echo "$SSL_LINE" | sed -nE 's#.* / ([A-Z0-9_-]+) / .*#\1#p' | head -n 1)
+GROUP=$(echo "$SSL_LINE" | sed -nE 's#.* / ([^ /]+)$#\1#p' | head -n 1)
+
+if [ -z "$CIPHER" ]; then
+    CIPHER=$(echo "$SSL_LINE" | awk -F'/' '{print $2}' | tr -d ' ')
+fi
+if [ -z "$GROUP" ]; then
+    GROUP=$(echo "$SSL_LINE" | awk -F'/' '{print $3}' | tr -d ' ')
+fi
 
 echo "=== 요약 ==="
 echo "Protocol : ${PROTOCOL:-Unknown}"

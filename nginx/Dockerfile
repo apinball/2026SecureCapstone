@@ -3,7 +3,7 @@ FROM openquantumsafe/nginx
 USER root
 
 # RSA 인증서 생성 (Stage 1 ECC / Stage 2 Hybrid 공용)
-RUN apk add --no-cache openssl && \
+RUN apk add --no-cache openssl curl && \
     mkdir -p /etc/nginx/certs && \
     openssl req -x509 -newkey rsa:2048 -days 365 \
         -keyout /etc/nginx/certs/server.key \

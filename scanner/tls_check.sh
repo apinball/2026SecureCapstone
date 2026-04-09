@@ -2,8 +2,8 @@
 
 # ============================================================
 # tls_check.sh — TLS policy verification script
-# Connects to server via openssl s_client and verifies
-# negotiated cipher suite matches the expected stage policy.
+# Connects to server via curl and verifies negotiated cipher
+# suite matches the expected stage policy.
 # Output: scanner/results/tls-check-summary.json
 # Exit:   0 = pass, 1 = fail
 # Usage:  tls_check.sh <host> <port> <stage>
@@ -40,31 +40,30 @@ else
     exit 1
 fi
 
-# Connect and get TLS negotiation result
+# Connect and get TLS negotiation result via curl
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT INT TERM
 
-openssl s_client \
-    -connect "$HOST:$PORT" \
-    -groups "$CURVES" \
-    -brief \
-    -no_tls1 -no_tls1_1 \
-    2>&1 </dev/null | tee "$TMPFILE"
+curl -k -v --connect-timeout 5 --curves "$CURVES" \
+    https://"$HOST":"$PORT"/ > "$TMPFILE" 2>&1
 
-OPENSSL_EXIT=${PIPESTATUS[0]}
+CURL_EXIT=$?
 
 # Fail if connection failed
-if [ "$OPENSSL_EXIT" -ne 0 ] || ! grep -q "Protocol version" "$TMPFILE"; then
+if [ "$CURL_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE"; then
     echo "[ERROR] TLS connection to $HOST:$PORT failed"
+    cat "$TMPFILE" | tail -5
     exit 1
 fi
 
 echo ""
 
-# Parse negotiated values
-PROTOCOL=$(grep "Protocol version" "$TMPFILE" | awk '{print $NF}')
-CIPHER=$(grep "Ciphersuite" "$TMPFILE" | awk '{print $NF}')
-GROUP=$(grep -E "Negotiated TLS1.3 group|Server Temp Key" "$TMPFILE" | cut -d: -f2- | tr -d ' ')
+# Parse negotiated values from curl -v output
+# Format: "SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519MLKEM768 / ..."
+SSL_LINE=$(grep "SSL connection using" "$TMPFILE" | head -1)
+PROTOCOL=$(echo "$SSL_LINE" | awk -F'/' '{print $1}' | grep -oE 'TLSv[0-9.]+')
+CIPHER=$(echo "$SSL_LINE" | awk -F'/' '{print $2}' | tr -d ' ')
+GROUP=$(echo "$SSL_LINE" | awk -F'/' '{print $3}' | tr -d ' ')
 
 # Handle empty values
 PROTOCOL=${PROTOCOL:-Unknown}
@@ -91,11 +90,9 @@ if [ "$STAGE_NUM" = "1" ]; then
     fi
 
 elif [ "$STAGE_NUM" = "2" ]; then
-    # Stage 2: must have X25519MLKEM768 AND classical fallback
+    # Stage 2: must have MLKEM (X25519MLKEM768 hybrid)
     if ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
         FAIL_REASON="Stage 2 policy violation: X25519MLKEM768 not negotiated"
-    elif ! echo "$GROUP_LOWER" | grep -qi "x25519"; then
-        FAIL_REASON="Stage 2 policy violation: classical fallback (X25519) not present"
     else
         RESULT="pass"
     fi

@@ -7,8 +7,9 @@ RUN apk add --no-cache \
     bash \
     nmap \
     net-tools \
-    iputils
+    iputils \
+    python3
 
-COPY verify_tls.sh /usr/local/bin/verify_tls.sh
-RUN sed -i 's/\r//' /usr/local/bin/verify_tls.sh && \
-    chmod +x /usr/local/bin/verify_tls.sh
+COPY scanner/tls_check.sh /usr/local/bin/tls_check.sh
+RUN sed -i 's/\r//' /usr/local/bin/tls_check.sh && \
+    chmod +x /usr/local/bin/tls_check.sh

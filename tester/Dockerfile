@@ -1,4 +1,4 @@
-FROM openquantumsafe/curl
+FROM openquantumsafe/curl:0.11.0
 
 USER root
 

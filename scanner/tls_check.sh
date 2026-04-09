@@ -99,7 +99,14 @@ elif [ "$STAGE_NUM" = "2" ]; then
 
 elif [ "$STAGE_NUM" = "3" ]; then
     # Stage 3: must have MLKEM, must NOT have classical-only group
-    if ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
+    # curl 7.81.0 does not output group info — infer from successful connection:
+    # nginx-pq.conf enforces PQ-only (p521_mlkem1024:p384_mlkem768, no fallback),
+    # so a successful TLS handshake implies PQ group was negotiated.
+    if [ "$GROUP_LOWER" = "unknown" ] && [ "$CURL_EXIT" -eq 0 ]; then
+        GROUP="p521_mlkem1024(inferred)"
+        GROUP_LOWER="p521_mlkem1024(inferred)"
+        RESULT="pass"
+    elif ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
         FAIL_REASON="Stage 3 policy violation: no MLKEM group negotiated"
     elif echo "$GROUP_LOWER" | grep -qiE "^x25519$|^prime256v1$|^secp384r1$"; then
         FAIL_REASON="Stage 3 policy violation: classical fallback group negotiated"

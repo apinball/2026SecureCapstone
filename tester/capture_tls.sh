@@ -12,7 +12,7 @@ PCAP="/data/stage${STAGE}_capture.pcap"
 case "$STAGE" in
   1|ecc)    CURVES="X25519:P-256"         LABEL="Stage 1 (Classical ECC)" ;;
   2|hybrid) CURVES="X25519MLKEM768:X25519" LABEL="Stage 2 (Hybrid PQC)"   ;;
-  3|pq)     CURVES="X25519MLKEM768"        LABEL="Stage 3 (PQ-only)"       ;;
+  3|pq)     CURVES="mlkem1024"              LABEL="Stage 3 (Pure PQC)"      ;;
   *)
     echo "오류: stage=${STAGE} 는 유효하지 않습니다. {1|2|3}" >&2
     exit 1

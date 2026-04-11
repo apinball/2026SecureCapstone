@@ -22,8 +22,8 @@ case "$STAGE" in
     EXPECT="X25519MLKEM768"
     ;;
   3|pq)
-    CURVES="X25519MLKEM768"
-    EXPECT="X25519MLKEM768"
+    CURVES="mlkem1024"
+    EXPECT="mlkem1024"
     ;;
   *)
     echo "[verify_tls] 오류: stage=${STAGE} 는 유효하지 않습니다. {1|2|3}"

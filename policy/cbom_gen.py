@@ -1212,11 +1212,15 @@ def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
         print("[WARN] 설치: https://github.com/CycloneDX/cyclonedx-cli", file=sys.stderr)
         return True
 
-    result = subprocess.run(
-        [cli, "validate", "--input-file", filepath,
-         "--input-format", "json", "--spec-version", spec_version],
-        capture_output=True, text=True, timeout=60,
-    )
+    try:
+        result = subprocess.run(
+            [cli, "validate", "--input-file", filepath,
+             "--input-format", "json", "--spec-version", spec_version],
+            capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"[FAIL] CycloneDX validation 타임아웃 (60초 초과)", file=sys.stderr)
+        return False
 
     if result.returncode == 0:
         print(f"[PASS] CycloneDX {spec_version} schema validation 통과", file=sys.stderr)

@@ -439,33 +439,35 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
         "dilithium", "ml-dsa", "falcon", "sphincs", "slh-dsa",
     )):
         props["primitive"] = "signature"
-    elif "aes" in lower or ("chacha20" in lower and "poly1305" in lower):
-        props["primitive"] = "aead"
+    elif "aes" in lower:
+        props["primitive"] = "block-cipher"
+    elif "chacha20" in lower and "poly1305" in lower:
+        props["primitive"] = "stream-cipher"
     elif SHA_ALGO_PATTERN.search(lower):
-        props["primitive"] = "digest"
+        props["primitive"] = "hash"
 
     if mlkem_match:
         props["parameterSetIdentifier"] = mlkem_match.group(1)
-        props["algorithmFamily"] = "ML-KEM"
+        props["_algorithmFamily"] = "ML-KEM"
     if not has_mlkem:
         x_match = re.search(r"x(\d+)", lower)
         if x_match:
             props.setdefault("parameterSetIdentifier", x_match.group(1))
     p_match = re.search(r"p[-_ ]?(\d+)", lower)
     if p_match:
-        props["curve"] = f"P-{p_match.group(1)}"
+        props["_curve"] = f"P-{p_match.group(1)}"
     rsa_match = re.search(r"rsa[^\d]*(\d{3,5})", lower)
     if rsa_match:
         props.setdefault("parameterSetIdentifier", rsa_match.group(1))
-        props.setdefault("algorithmFamily", "RSA")
+        props.setdefault("_algorithmFamily", "RSA")
     if lower.startswith("ecdsa"):
-        props.setdefault("algorithmFamily", "ECDSA")
+        props.setdefault("_algorithmFamily", "ECDSA")
     if "aes" in lower:
-        props.setdefault("algorithmFamily", "AES")
+        props.setdefault("_algorithmFamily", "AES")
     if "chacha20" in lower and "poly1305" in lower:
-        props.setdefault("algorithmFamily", "ChaCha20-Poly1305")
+        props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
     if SHA_ALGO_PATTERN.search(lower):
-        props.setdefault("algorithmFamily", "SHA")
+        props.setdefault("_algorithmFamily", "SHA")
 
     if context == "certificate-signature":
         props.setdefault("cryptoFunctions", ["sign", "verify"])
@@ -477,20 +479,29 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     elif context == "public-key":
         props.setdefault("cryptoFunctions", ["verify"])
     elif context == "cipher-suite":
-        if props.get("primitive") == "aead":
+        if props.get("primitive") in ("block-cipher", "stream-cipher"):
             props.setdefault("cryptoFunctions", ["encrypt", "decrypt"])
-        elif props.get("primitive") == "digest":
+        elif props.get("primitive") == "hash":
             props.setdefault("cryptoFunctions", ["digest"])
     return prune_none(props)
 
 
 def build_algorithm_component(name, context="", extra_properties=None):
     ref = f"crypto/algorithm/{slugify(name)}"
+    alg_props = infer_algorithm_properties(name, context)
+    # algorithmFamily, curve are not in CycloneDX 1.6 algorithmProperties schema;
+    # extract and store as custom properties instead
+    alg_family = alg_props.pop("_algorithmFamily", None)
+    alg_curve = alg_props.pop("_curve", None)
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {"assetType": "algorithm",
-                             "algorithmProperties": infer_algorithm_properties(name, context)},
+                             "algorithmProperties": alg_props},
     }
+    if alg_family:
+        append_properties(comp, make_property("securecapstone:algorithmFamily", alg_family))
+    if alg_curve:
+        append_properties(comp, make_property("securecapstone:curve", alg_curve))
     for p in extra_properties or []:
         append_properties(comp, p)
     return ref, prune_none(comp)
@@ -502,28 +513,25 @@ def build_certificate_component(cert_f, cert_alg_ref, pk_ref, cert_path, *, reda
     subject = cert_f.get("subject") or "server-certificate"
     serial = cert_f.get("serial") or "unknown"
     ref = f"crypto/certificate/{slugify(subject)}@{slugify(serial)}"
-    related = []
-    if cert_alg_ref:
-        related.append(make_related_asset("algorithm", cert_alg_ref))
-    if pk_ref:
-        related.append(make_related_asset("public-key", pk_ref))
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": subject,
         "cryptoProperties": {
             "assetType": "certificate",
             "certificateProperties": {
-                "serialNumber": cert_f.get("serial"),
                 "subjectName": subject,
                 "issuerName": cert_f.get("issuer"),
                 "notValidBefore": parse_openssl_time(cert_f.get("not_before")),
                 "notValidAfter": parse_openssl_time(cert_f.get("not_after")),
+                "signatureAlgorithmRef": cert_alg_ref,
+                "subjectPublicKeyRef": pk_ref,
                 "certificateFormat": "X.509",
-                "certificateFileExtension": Path(cert_path).suffix.lstrip(".") if cert_path else None,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
             },
         },
     }
     append_properties(comp,
+                      make_property("securecapstone:cert:serialNumber", cert_f.get("serial")),
+                      make_property("securecapstone:cert:fileExtension",
+                                    Path(cert_path).suffix.lstrip(".") if cert_path else None),
                       make_property("securecapstone:cert:is_pqc", cert_f.get("is_pqc_certificate")),
                       make_property("securecapstone:cert:pqc_note", cert_f.get("cert_pqc_note")),
                       None if redact else make_property("securecapstone:cert:path", cert_path))
@@ -536,14 +544,13 @@ def build_public_key_component(cert_f, pk_alg_ref):
         return None, None
     name = cert_f.get("public_key_algorithm") or f"public-key-{bits or 'unknown'}"
     ref = f"crypto/key/{slugify(name)}-{bits or 'unknown'}"
-    related = [make_related_asset("algorithm", pk_alg_ref)] if pk_alg_ref else []
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {
             "assetType": "related-crypto-material",
             "relatedCryptoMaterialProperties": {
                 "type": "public-key", "state": "active", "size": bits,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
+                "algorithmRef": pk_alg_ref,
                 "securedBy": {"mechanism": "Software"},
             },
         },
@@ -568,7 +575,7 @@ def build_private_key_component(path, bits, pk_alg_ref, *, redact=True):
             "assetType": "related-crypto-material",
             "relatedCryptoMaterialProperties": {
                 "type": "private-key", "state": "active", "size": bits,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
+                "algorithmRef": pk_alg_ref,
                 "securedBy": {"mechanism": "Software"},
             },
         },
@@ -612,9 +619,9 @@ def build_protocol_component(
             "protocolProperties": {
                 "type": "tls", "version": protocol_version_only(name),
                 "cipherSuites": cipher_suites,
-                "relatedCryptographicAssets": {
-                    "assets": dedupe_related_assets(related_assets)
-                } if related_assets else None,
+                "cryptoRefArray": dedupe_keep_order(
+                    [asset["ref"] for asset in dedupe_related_assets(related_assets)]
+                ) if related_assets else None,
             },
         },
     }
@@ -1165,11 +1172,11 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
         "serialNumber": f"urn:uuid:{uuid.uuid4()}", "version": 1,
         "metadata": {
             "timestamp": snapshot.get("generated_at") or iso_utc_now(),
-            "tools": {"components": [{
+            "tools": [{
                 "type": "application", "name": GENERATOR_NAME,
                 "version": GENERATOR_VERSION,
                 "description": "TLS Termination CBOM Generator (CycloneDX output)",
-            }]},
+            }],
             "component": prune_none(root_comp),
         },
         "components": list(comps.values()),

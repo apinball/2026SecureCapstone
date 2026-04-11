@@ -223,27 +223,13 @@ jobs:
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
-      - name: .NET SDK 설치
-        if: always()
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: CycloneDX CLI 캐시
-        if: always()
-        id: cyclonedx-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.dotnet/tools
-          key: cyclonedx-cli-${{ runner.os }}-dotnet8
-
       - name: CycloneDX CLI 설치
-        if: always() && steps.cyclonedx-cache.outputs.cache-hit != 'true'
-        run: dotnet tool install --global CycloneDX.CLI
-
-      - name: dotnet tools PATH 설정
         if: always()
-        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+        run: |
+          CDXVER="v0.27.1"
+          wget -q "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CDXVER}/cyclonedx-linux-x64" \
+            -O /usr/local/bin/cyclonedx
+          chmod +x /usr/local/bin/cyclonedx
 
       - name: 10. CBOM 명세서 생성 및 리포팅
         id: cbom_report

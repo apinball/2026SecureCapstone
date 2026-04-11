@@ -1,0 +1,18 @@
+{
+  "stage": "2",
+  "run_number": "246",
+  "timestamp": "2026-04-11T14:54:29Z",
+  "commit": "54c56a0abebebf1889674e36a0ebff42cb279ffc",
+  "branch": "feature/stage3ca",
+  "scans": {
+    "trivy": "pass",
+    "gitleaks": "pass",
+    "semgrep": "pass",
+    "tls_check": "pass"
+  },
+  "findings": 0,
+  "cbom": {
+    "manual_action_required": "0",
+    "status": "UNCHANGED"
+  }
+}

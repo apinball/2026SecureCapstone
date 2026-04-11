@@ -223,6 +223,10 @@ jobs:
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
+      - name: CycloneDX CLI 설치
+        if: always()
+        run: npm install -g @cyclonedx/cyclonedx-cli
+
       - name: 10. CBOM 명세서 생성 및 리포팅
         id: cbom_report
         if: always()
@@ -230,7 +234,7 @@ jobs:
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
 
           CBOM_RC=0
-          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json || CBOM_RC=$?
+          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json --skip-validation || CBOM_RC=$?
 
           echo "cbom_gen_exit_code=${CBOM_RC}" >> "$GITHUB_OUTPUT"
 
@@ -325,6 +329,14 @@ jobs:
             --current artifacts/cbom_stage${{ env.STAGE }}.json \
             --previous "$PREV_CBOM" \
             --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+          # ── CycloneDX 1.6 schema validation (최종 CBOM 검증) ──
+          echo "CycloneDX 1.6 schema validation 시작..."
+          cyclonedx validate \
+            --input-file artifacts/cbom_stage${{ env.STAGE }}.json \
+            --input-format json \
+            --spec-version 1.6
+          echo "[PASS] CycloneDX 1.6 schema validation 통과"
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

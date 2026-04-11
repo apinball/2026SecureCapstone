@@ -26,6 +26,7 @@ CycloneDX CLI로 검증:
 Exit codes:
   0 - 정상
   2 - 동적 분석 실패 (검증 스크립트 오류 포함)
+  3 - CycloneDX schema validation 실패
 """
 
 import argparse
@@ -34,6 +35,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import uuid
@@ -1197,6 +1199,37 @@ def generate_cbom(
     return convert_snapshot_to_cyclonedx(snapshot, spec_version=spec_version, redact=redact)
 
 
+def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
+    """CycloneDX CLI를 사용하여 CBOM JSON의 스키마 준수 여부를 검증한다.
+
+    Returns:
+        True  — 검증 통과 또는 CLI 미설치(경고만 출력)
+        False — 검증 실패
+    """
+    cli = shutil.which("cyclonedx")
+    if cli is None:
+        print("[WARN] cyclonedx CLI가 설치되어 있지 않아 validation을 건너뜁니다.", file=sys.stderr)
+        print("[WARN] 설치: https://github.com/CycloneDX/cyclonedx-cli", file=sys.stderr)
+        return True
+
+    result = subprocess.run(
+        [cli, "validate", "--input-file", filepath,
+         "--input-format", "json", "--spec-version", spec_version],
+        capture_output=True, text=True, timeout=60,
+    )
+
+    if result.returncode == 0:
+        print(f"[PASS] CycloneDX {spec_version} schema validation 통과", file=sys.stderr)
+        return True
+
+    print(f"[FAIL] CycloneDX {spec_version} schema validation 실패:", file=sys.stderr)
+    if result.stdout:
+        print(result.stdout, file=sys.stderr)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="TLS Termination CBOM Generator (CycloneDX 1.6 JSON)",
@@ -1207,7 +1240,7 @@ def main():
   python policy/cbom_gen.py --out artifacts/cbom.json
   python policy/cbom_gen.py --stage 3 --no-redact
 
-Exit codes:  0=정상  2=동적분석실패
+Exit codes:  0=정상  2=동적분석실패  3=CycloneDX검증실패
         """)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -1221,6 +1254,8 @@ Exit codes:  0=정상  2=동적분석실패
     parser.add_argument("--out", default="")
     parser.add_argument("--redact", action=argparse.BooleanOptionalAction, default=DEFAULT_REDACT,
                         help="BOM에서 내부 경로/분석 상세 제거 (기본: 제거)")
+    parser.add_argument("--skip-validation", action="store_true", default=False,
+                        help="CycloneDX CLI schema validation을 건너뛴다")
     args = parser.parse_args()
 
     cbom = generate_cbom(
@@ -1237,6 +1272,11 @@ Exit codes:  0=정상  2=동적분석실패
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(text + "\n", encoding="utf-8")
         print(f"\nCBOM (CycloneDX {args.spec_version}) 저장 완료: {out_path}", file=sys.stderr)
+
+        # ── CycloneDX schema validation ──
+        if not args.skip_validation:
+            if not validate_cbom_cyclonedx(str(out_path), args.spec_version):
+                sys.exit(3)
 
     pqc_status = extract_root_property(cbom, "securecapstone:pqc_status")
     if pqc_status == "DYNAMIC_ANALYSIS_FAILED":

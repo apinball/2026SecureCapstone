@@ -340,7 +340,7 @@ jobs:
           if ! cyclonedx validate \
             --input-file artifacts/cbom_stage${{ env.STAGE }}.json \
             --input-format json \
-            --spec-version 1.6; then
+            --input-version v1_6 --fail-on-errors; then
             echo "[FAIL] CycloneDX 1.6 schema validation 실패 — 위 출력 참고"
             echo "  대상 파일: artifacts/cbom_stage${{ env.STAGE }}.json"
             exit 1

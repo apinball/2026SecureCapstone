@@ -21,7 +21,7 @@ CI 파이프라인 연동 (devsecops-pipeline.yml Step 10):
   python policy/cbom_gen.py --stage 2 --out artifacts/cbom_stage2.json
 
 CycloneDX CLI로 검증:
-  cyclonedx validate --input-file artifacts/cbom_stage2.json --spec-version 1.6
+  cyclonedx validate --input-file artifacts/cbom_stage2.json --input-version v1_6 --fail-on-errors
 
 Exit codes:
   0 - 정상
@@ -1215,7 +1215,9 @@ def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
     try:
         result = subprocess.run(
             [cli, "validate", "--input-file", filepath,
-             "--input-format", "json", "--spec-version", spec_version],
+             "--input-format", "json",
+             "--input-version", f"v{spec_version.replace('.', '_')}",
+             "--fail-on-errors"],
             capture_output=True, text=True, timeout=60,
         )
     except subprocess.TimeoutExpired:

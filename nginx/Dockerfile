@@ -1,7 +1,7 @@
 # Stage 1: Dilithium3 인증서 생성 (OQS-OpenSSL 사용)
 FROM openquantumsafe/oqs-ossl3 AS cert-builder
 RUN mkdir -p /certs && \
-    openssl req -x509 -newkey dilithium3 -days 365 \
+    openssl req -x509 -newkey mldsa65 -days 365 \
         -keyout /certs/dilithium3.key \
         -out    /certs/dilithium3.crt \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \

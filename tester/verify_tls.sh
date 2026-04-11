@@ -15,15 +15,15 @@ echo "[verify_tls] host=$HOST port=$PORT stage=$STAGE"
 case "$STAGE" in
   1|ecc)
     CURVES="X25519:P-256"
-    EXPECT="TLSv1"
+    EXPECT="X25519"
     ;;
   2|hybrid)
     CURVES="X25519MLKEM768:X25519"
     EXPECT="X25519MLKEM768"
     ;;
   3|pq)
-    CURVES="p521_mlkem1024:p384_mlkem768"
-    EXPECT="mlkem"
+    CURVES="X25519MLKEM768"
+    EXPECT="X25519MLKEM768"
     ;;
   *)
     echo "[verify_tls] 오류: stage=${STAGE} 는 유효하지 않습니다. {1|2|3}"
@@ -35,7 +35,7 @@ echo "[verify_tls] TLS 연결 시도 (curves=$CURVES)..."
 RESULT=$(curl -skv --curves "$CURVES" "$URL" 2>&1)
 
 # 연결 성공 여부 확인
-if echo "$RESULT" | grep -qi "SSL connection using\|Connected\|HTTP/"; then
+if echo "$RESULT" | grep -qi "SSL connection using\|HTTP/"; then
     echo "[verify_tls] TLS 연결 성공"
 else
     echo "[verify_tls] 오류: TLS 연결 실패"

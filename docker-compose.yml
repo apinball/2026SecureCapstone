@@ -40,6 +40,9 @@ services:
     container_name: tls-tester
     volumes:
       - ./tester/captures:/data
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     command: tail -f /dev/null
     networks:
       - pqc-network

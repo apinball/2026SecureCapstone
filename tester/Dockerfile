@@ -8,8 +8,15 @@ RUN apk add --no-cache \
     nmap \
     net-tools \
     iputils \
-    python3
+    python3 \
+    tshark
 
 COPY scanner/tls_check.sh /usr/local/bin/tls_check.sh
-RUN sed -i 's/\r//' /usr/local/bin/tls_check.sh && \
-    chmod +x /usr/local/bin/tls_check.sh
+COPY tester/capture_tls.sh /usr/local/bin/capture_tls.sh
+COPY tester/compare_captures.sh /usr/local/bin/compare_captures.sh
+RUN sed -i 's/\r//' /usr/local/bin/tls_check.sh \
+                    /usr/local/bin/capture_tls.sh \
+                    /usr/local/bin/compare_captures.sh && \
+    chmod +x /usr/local/bin/tls_check.sh \
+             /usr/local/bin/capture_tls.sh \
+             /usr/local/bin/compare_captures.sh

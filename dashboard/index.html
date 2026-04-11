@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevSecOps PQC Pipeline Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --blue: #58a6ff;
+      --purple: #bc8cff;
+      --teal: #39d353;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    /* ── Header ── */
+    .header {
+      max-width: 960px;
+      margin: 0 auto 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header-left h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .header-left p {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Main layout ── */
+    .container { max-width: 960px; margin: 0 auto; }
+
+    /* ── Stage banner ── */
+    .stage-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .stage-badge {
+      font-size: 2.2rem;
+      font-weight: 800;
+      padding: 8px 20px;
+      border-radius: 8px;
+      letter-spacing: -1px;
+    }
+    .stage-1 { background: #1c2a3a; color: var(--blue);   border: 1px solid #1f6feb; }
+    .stage-2 { background: #1a2d1f; color: var(--green);  border: 1px solid #2ea043; }
+    .stage-3 { background: #2d1f2d; color: var(--purple); border: 1px solid #8957e5; }
+    .stage-info h2 { font-size: 1.1rem; font-weight: 600; }
+    .stage-info p  { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+    .meta-chips { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .chip span { color: var(--text); }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Scan result cards ── */
+    .scan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .scan-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .scan-card .tool-name {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .scan-card .result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .scan-card .icon { font-size: 1.3rem; }
+    .scan-card .result-text {
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pass  { color: var(--green); }
+    .fail  { color: var(--red); }
+    .unknown { color: var(--yellow); }
+
+    /* ── Two-column section ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .info-card .card-title {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .big-number {
+      font-size: 2.4rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .big-number.zero { color: var(--green); }
+    .big-number.nonzero { color: var(--red); }
+    .sub-label { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+
+    .progress-bar-wrap { margin-top: 12px; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .progress-bar {
+      height: 6px;
+      background: #21262d;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+    .fill-green  { background: var(--green); }
+    .fill-yellow { background: var(--yellow); }
+    .fill-red    { background: var(--red); }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .status-pill {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill-complete  { background: #1a2d1f; color: var(--green);  border: 1px solid #2ea043; }
+    .pill-partial   { background: #2d2507; color: var(--yellow); border: 1px solid #9e6a03; }
+    .pill-baseline  { background: #1c2a3a; color: var(--blue);   border: 1px solid #1f6feb; }
+    .pill-improved  { background: #1a2d1f; color: var(--teal);   border: 1px solid #2ea043; }
+    .pill-regressed { background: #3d1a1a; color: var(--red);    border: 1px solid #da3633; }
+    .pill-unknown   { background: #21262d; color: var(--muted);  border: 1px solid var(--border); }
+
+    /* ── Commit info ── */
+    .commit-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+    }
+    .commit-bar .label { color: var(--muted); }
+    .commit-bar .val   { color: var(--text); font-family: monospace; }
+    .branch-tag {
+      background: #1c2a3a;
+      border: 1px solid #1f6feb;
+      color: var(--blue);
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 0.75rem;
+      font-family: monospace;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      max-width: 960px;
+      margin: 32px auto 0;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ── Loading / Error ── */
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .error-box {
+      background: #3d1a1a;
+      border: 1px solid #da3633;
+      border-radius: 10px;
+      padding: 16px 20px;
+      color: var(--red);
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>🔐 DevSecOps PQC Pipeline</h1>
+      <p>Post-Quantum Cryptography Migration Dashboard</p>
+    </div>
+    <div class="header-right">
+      <div class="live-dot"></div>
+      <span id="last-updated">로딩 중...</span>
+    </div>
+  </div>
+
+  <div class="container" id="app">
+    <div class="loading">파이프라인 결과를 불러오는 중...</div>
+  </div>
+
+  <div class="footer">
+    2026SecureCapstone · DevSecOps PQC TLS Migration Pipeline ·
+    자동 업데이트: 파이프라인 실행 시마다
+  </div>
+
+  <script>
+    const STAGE_META = {
+      '1': { label: 'Classical ECC',  desc: 'x25519 · prime256v1 · secp384r1', cls: 'stage-1' },
+      '2': { label: 'Hybrid PQC',     desc: 'X25519MLKEM768 + Classical',      cls: 'stage-2' },
+      '3': { label: 'PQ-Only',        desc: 'p521_mlkem1024 · p384_mlkem768 (NIST Level 5)', cls: 'stage-3' },
+    };
+
+    const SCAN_META = {
+      trivy:     { name: 'Trivy',      sub: 'CVE / 취약점' },
+      gitleaks:  { name: 'Gitleaks',   sub: 'Secrets 탐지' },
+      semgrep:   { name: 'Semgrep',    sub: 'SAST 정적분석' },
+      tls_check: { name: 'TLS 동적검증', sub: 'PQC 핸드셰이크' },
+    };
+
+    function icon(result) {
+      if (result === 'pass') return '✅';
+      if (result === 'fail') return '❌';
+      return '⚠️';
+    }
+
+    function resultClass(result) {
+      if (result === 'pass') return 'pass';
+      if (result === 'fail') return 'fail';
+      return 'unknown';
+    }
+
+    function pillClass(status) {
+      const map = {
+        COMPLETE: 'pill-complete', PARTIAL: 'pill-partial',
+        BASELINE: 'pill-baseline', IMPROVED: 'pill-improved',
+        REGRESSED: 'pill-regressed',
+      };
+      return map[status] || 'pill-unknown';
+    }
+
+    function formatTs(iso) {
+      if (!iso) return 'N/A';
+      const d = new Date(iso);
+      return d.toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function allPass(scans) {
+      return Object.values(scans).every(v => v === 'pass');
+    }
+
+    function render(data) {
+      const stage    = data.stage || '?';
+      const meta     = STAGE_META[stage] || { label: `Stage ${stage}`, desc: '', cls: 'stage-1' };
+      const scans    = data.scans || {};
+      const findings = parseInt(data.findings ?? 0, 10);
+      const cbom     = data.cbom || {};
+      const manual   = cbom.manual_action_required ?? 'N/A';
+      const progress = cbom.status || 'N/A';
+      const manualNum = parseInt(manual, 10);
+      const migTotal  = findings + (isNaN(manualNum) ? 0 : manualNum);
+      const fillPct   = migTotal === 0 ? 100 : Math.max(0, Math.round((1 - manualNum / (migTotal || 1)) * 100));
+      const fillCls   = fillPct === 100 ? 'fill-green' : fillPct > 50 ? 'fill-yellow' : 'fill-red';
+
+      const overall = allPass(scans) ? 'pass' : 'fail';
+
+      document.getElementById('last-updated').textContent =
+        '최종 업데이트: ' + formatTs(data.timestamp);
+
+      const scanCards = Object.entries(SCAN_META).map(([key, m]) => {
+        const r = scans[key] || 'unknown';
+        return `
+          <div class="scan-card">
+            <div class="tool-name">${m.name} <span style="font-size:0.72rem">(${m.sub})</span></div>
+            <div class="result-row">
+              <span class="icon">${icon(r)}</span>
+              <span class="result-text ${resultClass(r)}">${r}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      const html = `
+        <!-- Stage banner -->
+        <div class="stage-banner">
+          <div class="stage-badge ${meta.cls}">S${stage}</div>
+          <div class="stage-info">
+            <h2>${meta.label}</h2>
+            <p>${meta.desc}</p>
+          </div>
+          <div class="meta-chips">
+            <div class="chip">Run <span>#${data.run_number || '?'}</span></div>
+            <div class="chip">Overall <span class="${resultClass(overall)}">${overall === 'pass' ? 'PASS ✅' : 'FAIL ❌'}</span></div>
+          </div>
+        </div>
+
+        <!-- Commit info -->
+        <div class="commit-bar">
+          <span class="label">브랜치</span>
+          <span class="branch-tag">${data.branch || 'unknown'}</span>
+          <span class="label">커밋</span>
+          <span class="val">${(data.commit || '').slice(0, 7) || 'N/A'}</span>
+          <span class="label">실행 시각</span>
+          <span class="val">${formatTs(data.timestamp)}</span>
+        </div>
+
+        <!-- Scan results -->
+        <div class="section-title">보안 스캔 결과</div>
+        <div class="scan-grid">${scanCards}</div>
+
+        <!-- Findings + CBOM -->
+        <div class="two-col">
+          <div class="info-card">
+            <div class="card-title">레거시 암호 탐지 (Semgrep)</div>
+            <div class="big-number ${findings === 0 ? 'zero' : 'nonzero'}">${findings}</div>
+            <div class="sub-label">건 탐지 ${findings === 0 ? '— 클린 상태' : '— 수동 마이그레이션 필요'}</div>
+          </div>
+
+          <div class="info-card">
+            <div class="card-title">CBOM 마이그레이션 진척도</div>
+            <div class="status-row">
+              <span class="status-pill ${pillClass(progress)}">${progress}</span>
+              <span style="font-size:0.8rem;color:var(--muted)">수동 조치 필요: <strong style="color:var(--text)">${manual}건</strong></span>
+            </div>
+            <div class="progress-bar-wrap">
+              <div class="progress-label">
+                <span>자동 마이그레이션 완료</span>
+                <span>${fillPct}%</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill ${fillCls}" style="width:${fillPct}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('app').innerHTML = html;
+    }
+
+    function renderError(msg) {
+      document.getElementById('app').innerHTML = `
+        <div class="error-box">
+          ⚠️ 데이터를 불러오지 못했습니다: ${msg}<br>
+          <small style="color:var(--muted);margin-top:6px;display:block">
+            파이프라인이 아직 실행되지 않았거나, <code>data/results.json</code>이 아직 없을 수 있습니다.
+          </small>
+        </div>
+      `;
+      document.getElementById('last-updated').textContent = '데이터 없음';
+    }
+
+    fetch('data/results.json?t=' + Date.now())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(render)
+      .catch(e => renderError(e.message));
+  </script>
+</body>
+</html>

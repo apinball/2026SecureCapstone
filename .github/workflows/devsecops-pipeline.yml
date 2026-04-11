@@ -487,6 +487,49 @@ jobs:
         env:
           STAGE: ${{ env.STAGE }}
 
+      - name: 대시보드 데이터 생성
+        if: always()
+        run: |
+          mkdir -p dashboard/data
+
+          STAGE="${{ env.STAGE }}"
+          TRIVY=$(jq -r '.tools.trivy // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          TLS_CHECK=$(jq -r '.result // "unknown"' scanner/results/tls-check-summary.json 2>/dev/null || echo "unknown")
+          FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | (try fromjson catch {}) | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | (try fromjson catch {}) | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+
+          cat > dashboard/data/results.json << RESULTS_EOF
+          {
+            "stage": "${STAGE}",
+            "run_number": "${{ github.run_number }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "scans": {
+              "trivy": "${TRIVY}",
+              "gitleaks": "${GITLEAKS}",
+              "semgrep": "${SEMGREP}",
+              "tls_check": "${TLS_CHECK}"
+            },
+            "findings": ${FINDINGS},
+            "cbom": {
+              "manual_action_required": "${MANUAL}",
+              "status": "${PROGRESS}"
+            }
+          }
+          RESULTS_EOF
+
+      - name: GitHub Pages 배포
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dashboard
+          keep_files: false
+
       - name: 파이프라인 실패 시 Slack 알람
         if: failure() && github.ref == 'refs/heads/main'
         run: |

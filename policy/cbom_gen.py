@@ -441,7 +441,7 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
         props["primitive"] = "signature"
     elif "aes" in lower:
         props["primitive"] = "block-cipher"
-    elif "chacha20" in lower and "poly1305" in lower:
+    elif "chacha20" in lower:
         props["primitive"] = "stream-cipher"
     elif SHA_ALGO_PATTERN.search(lower):
         props["primitive"] = "hash"
@@ -464,8 +464,11 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
         props.setdefault("_algorithmFamily", "ECDSA")
     if "aes" in lower:
         props.setdefault("_algorithmFamily", "AES")
-    if "chacha20" in lower and "poly1305" in lower:
-        props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
+    if "chacha20" in lower:
+        if "poly1305" in lower:
+            props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
+        else:
+            props.setdefault("_algorithmFamily", "ChaCha20")
     if SHA_ALGO_PATTERN.search(lower):
         props.setdefault("_algorithmFamily", "SHA")
 
@@ -1219,7 +1222,7 @@ def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
         result = subprocess.run(
             [cli, "validate", "--input-file", filepath,
              "--input-format", "json",
-             "--input-version", f"v{spec_version.replace('.', '_')}",
+             "--input-version", f"v{spec_version.lstrip('v').replace('.', '_')}",
              "--fail-on-errors"],
             capture_output=True, text=True, timeout=60,
         )

@@ -1172,11 +1172,11 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
         "serialNumber": f"urn:uuid:{uuid.uuid4()}", "version": 1,
         "metadata": {
             "timestamp": snapshot.get("generated_at") or iso_utc_now(),
-            "tools": [{
+            "tools": {"components": [{
                 "type": "application", "name": GENERATOR_NAME,
                 "version": GENERATOR_VERSION,
                 "description": "TLS Termination CBOM Generator (CycloneDX output)",
-            }],
+            }]},
             "component": prune_none(root_comp),
         },
         "components": list(comps.values()),

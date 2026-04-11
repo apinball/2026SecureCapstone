@@ -603,10 +603,6 @@ def build_protocol_component(
         alg_refs = dedupe_keep_order(suite_algorithms.get(suite, []))
         if alg_refs:
             entry["algorithms"] = alg_refs
-        if neg_kex and neg_cipher and suite == neg_cipher:
-            entry["tlsGroups"] = [neg_kex]
-        elif not neg_cipher and len(groups) == 1:
-            entry["tlsGroups"] = groups
         cipher_suites.append(entry)
 
     comp = {

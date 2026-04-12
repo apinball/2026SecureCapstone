@@ -21,11 +21,12 @@ CI 파이프라인 연동 (devsecops-pipeline.yml Step 10):
   python policy/cbom_gen.py --stage 2 --out artifacts/cbom_stage2.json
 
 CycloneDX CLI로 검증:
-  cyclonedx validate --input-file artifacts/cbom_stage2.json --spec-version 1.6
+  cyclonedx validate --input-file artifacts/cbom_stage2.json --input-version v1_6 --fail-on-errors
 
 Exit codes:
   0 - 정상
   2 - 동적 분석 실패 (검증 스크립트 오류 포함)
+  3 - CycloneDX schema validation 실패
 """
 
 import argparse
@@ -34,6 +35,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import uuid
@@ -437,33 +439,38 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
         "dilithium", "ml-dsa", "falcon", "sphincs", "slh-dsa",
     )):
         props["primitive"] = "signature"
-    elif "aes" in lower or ("chacha20" in lower and "poly1305" in lower):
-        props["primitive"] = "aead"
+    elif "aes" in lower:
+        props["primitive"] = "block-cipher"
+    elif "chacha20" in lower:
+        props["primitive"] = "stream-cipher"
     elif SHA_ALGO_PATTERN.search(lower):
-        props["primitive"] = "digest"
+        props["primitive"] = "hash"
 
     if mlkem_match:
         props["parameterSetIdentifier"] = mlkem_match.group(1)
-        props["algorithmFamily"] = "ML-KEM"
+        props["_algorithmFamily"] = "ML-KEM"
     if not has_mlkem:
         x_match = re.search(r"x(\d+)", lower)
         if x_match:
             props.setdefault("parameterSetIdentifier", x_match.group(1))
     p_match = re.search(r"p[-_ ]?(\d+)", lower)
     if p_match:
-        props["curve"] = f"P-{p_match.group(1)}"
+        props["_curve"] = f"P-{p_match.group(1)}"
     rsa_match = re.search(r"rsa[^\d]*(\d{3,5})", lower)
     if rsa_match:
         props.setdefault("parameterSetIdentifier", rsa_match.group(1))
-        props.setdefault("algorithmFamily", "RSA")
+        props.setdefault("_algorithmFamily", "RSA")
     if lower.startswith("ecdsa"):
-        props.setdefault("algorithmFamily", "ECDSA")
+        props.setdefault("_algorithmFamily", "ECDSA")
     if "aes" in lower:
-        props.setdefault("algorithmFamily", "AES")
-    if "chacha20" in lower and "poly1305" in lower:
-        props.setdefault("algorithmFamily", "ChaCha20-Poly1305")
+        props.setdefault("_algorithmFamily", "AES")
+    if "chacha20" in lower:
+        if "poly1305" in lower:
+            props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
+        else:
+            props.setdefault("_algorithmFamily", "ChaCha20")
     if SHA_ALGO_PATTERN.search(lower):
-        props.setdefault("algorithmFamily", "SHA")
+        props.setdefault("_algorithmFamily", "SHA")
 
     if context == "certificate-signature":
         props.setdefault("cryptoFunctions", ["sign", "verify"])
@@ -475,20 +482,29 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     elif context == "public-key":
         props.setdefault("cryptoFunctions", ["verify"])
     elif context == "cipher-suite":
-        if props.get("primitive") == "aead":
+        if props.get("primitive") in ("block-cipher", "stream-cipher"):
             props.setdefault("cryptoFunctions", ["encrypt", "decrypt"])
-        elif props.get("primitive") == "digest":
+        elif props.get("primitive") == "hash":
             props.setdefault("cryptoFunctions", ["digest"])
     return prune_none(props)
 
 
 def build_algorithm_component(name, context="", extra_properties=None):
     ref = f"crypto/algorithm/{slugify(name)}"
+    alg_props = infer_algorithm_properties(name, context)
+    # algorithmFamily, curve are not in CycloneDX 1.6 algorithmProperties schema;
+    # extract and store as custom properties instead
+    alg_family = alg_props.pop("_algorithmFamily", None)
+    alg_curve = alg_props.pop("_curve", None)
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {"assetType": "algorithm",
-                             "algorithmProperties": infer_algorithm_properties(name, context)},
+                             "algorithmProperties": alg_props},
     }
+    if alg_family:
+        append_properties(comp, make_property("securecapstone:algorithmFamily", alg_family))
+    if alg_curve:
+        append_properties(comp, make_property("securecapstone:curve", alg_curve))
     for p in extra_properties or []:
         append_properties(comp, p)
     return ref, prune_none(comp)
@@ -500,28 +516,25 @@ def build_certificate_component(cert_f, cert_alg_ref, pk_ref, cert_path, *, reda
     subject = cert_f.get("subject") or "server-certificate"
     serial = cert_f.get("serial") or "unknown"
     ref = f"crypto/certificate/{slugify(subject)}@{slugify(serial)}"
-    related = []
-    if cert_alg_ref:
-        related.append(make_related_asset("algorithm", cert_alg_ref))
-    if pk_ref:
-        related.append(make_related_asset("public-key", pk_ref))
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": subject,
         "cryptoProperties": {
             "assetType": "certificate",
             "certificateProperties": {
-                "serialNumber": cert_f.get("serial"),
                 "subjectName": subject,
                 "issuerName": cert_f.get("issuer"),
                 "notValidBefore": parse_openssl_time(cert_f.get("not_before")),
                 "notValidAfter": parse_openssl_time(cert_f.get("not_after")),
+                "signatureAlgorithmRef": cert_alg_ref,
+                "subjectPublicKeyRef": pk_ref,
                 "certificateFormat": "X.509",
-                "certificateFileExtension": Path(cert_path).suffix.lstrip(".") if cert_path else None,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
             },
         },
     }
     append_properties(comp,
+                      make_property("securecapstone:cert:serialNumber", cert_f.get("serial")),
+                      make_property("securecapstone:cert:fileExtension",
+                                    Path(cert_path).suffix.lstrip(".") if cert_path else None),
                       make_property("securecapstone:cert:is_pqc", cert_f.get("is_pqc_certificate")),
                       make_property("securecapstone:cert:pqc_note", cert_f.get("cert_pqc_note")),
                       None if redact else make_property("securecapstone:cert:path", cert_path))
@@ -534,14 +547,13 @@ def build_public_key_component(cert_f, pk_alg_ref):
         return None, None
     name = cert_f.get("public_key_algorithm") or f"public-key-{bits or 'unknown'}"
     ref = f"crypto/key/{slugify(name)}-{bits or 'unknown'}"
-    related = [make_related_asset("algorithm", pk_alg_ref)] if pk_alg_ref else []
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {
             "assetType": "related-crypto-material",
             "relatedCryptoMaterialProperties": {
                 "type": "public-key", "state": "active", "size": bits,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
+                "algorithmRef": pk_alg_ref,
                 "securedBy": {"mechanism": "Software"},
             },
         },
@@ -566,7 +578,7 @@ def build_private_key_component(path, bits, pk_alg_ref, *, redact=True):
             "assetType": "related-crypto-material",
             "relatedCryptoMaterialProperties": {
                 "type": "private-key", "state": "active", "size": bits,
-                "relatedCryptographicAssets": {"assets": dedupe_related_assets(related)} if related else None,
+                "algorithmRef": pk_alg_ref,
                 "securedBy": {"mechanism": "Software"},
             },
         },
@@ -601,10 +613,6 @@ def build_protocol_component(
         alg_refs = dedupe_keep_order(suite_algorithms.get(suite, []))
         if alg_refs:
             entry["algorithms"] = alg_refs
-        if neg_kex and neg_cipher and suite == neg_cipher:
-            entry["tlsGroups"] = [neg_kex]
-        elif not neg_cipher and len(groups) == 1:
-            entry["tlsGroups"] = groups
         cipher_suites.append(entry)
 
     comp = {
@@ -614,9 +622,9 @@ def build_protocol_component(
             "protocolProperties": {
                 "type": "tls", "version": protocol_version_only(name),
                 "cipherSuites": cipher_suites,
-                "relatedCryptographicAssets": {
-                    "assets": dedupe_related_assets(related_assets)
-                } if related_assets else None,
+                "cryptoRefArray": dedupe_keep_order(
+                    [asset["ref"] for asset in dedupe_related_assets(related_assets)]
+                ) if related_assets else None,
             },
         },
     }
@@ -1197,6 +1205,43 @@ def generate_cbom(
     return convert_snapshot_to_cyclonedx(snapshot, spec_version=spec_version, redact=redact)
 
 
+def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
+    """CycloneDX CLI를 사용하여 CBOM JSON의 스키마 준수 여부를 검증한다.
+
+    Returns:
+        True  — 검증 통과 또는 CLI 미설치(경고만 출력)
+        False — 검증 실패
+    """
+    cli = shutil.which("cyclonedx")
+    if cli is None:
+        print("[WARN] cyclonedx CLI가 설치되어 있지 않아 validation을 건너뜁니다.", file=sys.stderr)
+        print("[WARN] 설치: https://github.com/CycloneDX/cyclonedx-cli", file=sys.stderr)
+        return True
+
+    try:
+        result = subprocess.run(
+            [cli, "validate", "--input-file", filepath,
+             "--input-format", "json",
+             "--input-version", f"v{spec_version.lstrip('v').replace('.', '_')}",
+             "--fail-on-errors"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"[FAIL] CycloneDX validation 타임아웃 (60초 초과)", file=sys.stderr)
+        return False
+
+    if result.returncode == 0:
+        print(f"[PASS] CycloneDX {spec_version} schema validation 통과", file=sys.stderr)
+        return True
+
+    print(f"[FAIL] CycloneDX {spec_version} schema validation 실패:", file=sys.stderr)
+    if result.stdout:
+        print(result.stdout, file=sys.stderr)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="TLS Termination CBOM Generator (CycloneDX 1.6 JSON)",
@@ -1207,7 +1252,7 @@ def main():
   python policy/cbom_gen.py --out artifacts/cbom.json
   python policy/cbom_gen.py --stage 3 --no-redact
 
-Exit codes:  0=정상  2=동적분석실패
+Exit codes:  0=정상  2=동적분석실패  3=CycloneDX검증실패
         """)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -1221,6 +1266,8 @@ Exit codes:  0=정상  2=동적분석실패
     parser.add_argument("--out", default="")
     parser.add_argument("--redact", action=argparse.BooleanOptionalAction, default=DEFAULT_REDACT,
                         help="BOM에서 내부 경로/분석 상세 제거 (기본: 제거)")
+    parser.add_argument("--skip-validation", action="store_true", default=False,
+                        help="CycloneDX CLI schema validation을 건너뛴다")
     args = parser.parse_args()
 
     cbom = generate_cbom(
@@ -1237,6 +1284,11 @@ Exit codes:  0=정상  2=동적분석실패
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(text + "\n", encoding="utf-8")
         print(f"\nCBOM (CycloneDX {args.spec_version}) 저장 완료: {out_path}", file=sys.stderr)
+
+        # ── CycloneDX schema validation ──
+        if not args.skip_validation:
+            if not validate_cbom_cyclonedx(str(out_path), args.spec_version):
+                sys.exit(3)
 
     pqc_status = extract_root_property(cbom, "securecapstone:pqc_status")
     if pqc_status == "DYNAMIC_ANALYSIS_FAILED":

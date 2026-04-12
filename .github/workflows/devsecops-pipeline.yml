@@ -223,14 +223,23 @@ jobs:
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
+      - name: CycloneDX CLI 설치
+        if: always()
+        run: |
+          CDXVER="v0.27.1"
+          wget -q "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CDXVER}/cyclonedx-linux-x64" \
+            -O /usr/local/bin/cyclonedx
+          chmod +x /usr/local/bin/cyclonedx
+
       - name: 10. CBOM 명세서 생성 및 리포팅
         id: cbom_report
         if: always()
         run: |
           echo "진행 중: 현재 서버 암호 자산 목록(JSON) 추출..."
 
+          # --skip-validation: cbom_diff.py 병합 후 최종 CBOM에 대해 cyclonedx validate를 실행하므로 여기서는 스킵
           CBOM_RC=0
-          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json || CBOM_RC=$?
+          python policy/cbom_gen.py --stage ${{ env.STAGE }} --out artifacts/cbom_stage${{ env.STAGE }}.json --skip-validation || CBOM_RC=$?
 
           echo "cbom_gen_exit_code=${CBOM_RC}" >> "$GITHUB_OUTPUT"
 
@@ -325,6 +334,18 @@ jobs:
             --current artifacts/cbom_stage${{ env.STAGE }}.json \
             --previous "$PREV_CBOM" \
             --out artifacts/cbom_stage${{ env.STAGE }}.json
+
+          # ── CycloneDX 1.6 schema validation (최종 CBOM 검증) ──
+          echo "CycloneDX 1.6 schema validation 시작..."
+          if ! cyclonedx validate \
+            --input-file artifacts/cbom_stage${{ env.STAGE }}.json \
+            --input-format json \
+            --input-version v1_6 --fail-on-errors; then
+            echo "[FAIL] CycloneDX 1.6 schema validation 실패 — 위 출력 참고"
+            echo "  대상 파일: artifacts/cbom_stage${{ env.STAGE }}.json"
+            exit 1
+          fi
+          echo "[PASS] CycloneDX 1.6 schema validation 통과"
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

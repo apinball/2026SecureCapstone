@@ -1,7 +1,7 @@
 # Stage 1: Dilithium3 인증서 생성 (OQS-OpenSSL 사용)
-FROM openquantumsafe/oqs-ossl3 AS cert-builder
+FROM openquantumsafe/oqs-ossl3:0.10.1 AS cert-builder
 RUN mkdir -p /certs && \
-    openssl req -x509 -newkey mldsa65 -days 365 \
+    openssl req -x509 -newkey dilithium3 -days 365 \
         -keyout /certs/dilithium3.key \
         -out    /certs/dilithium3.crt \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
@@ -9,7 +9,7 @@ RUN mkdir -p /certs && \
     chmod 600 /certs/dilithium3.key
 
 # Stage 2: OQS-Nginx 본체
-FROM openquantumsafe/nginx
+FROM openquantumsafe/nginx:0.11.0
 
 USER root
 

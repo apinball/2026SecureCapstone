@@ -24,12 +24,13 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
       min-height: 100vh;
-      padding: 24px 16px;
+      padding: 40px 32px;
+      font-size: 16px;
     }
 
     /* ── Header ── */
     .header {
-      max-width: 960px;
+      max-width: 1400px;
       margin: 0 auto 32px;
       display: flex;
       align-items: center;
@@ -38,14 +39,14 @@
       gap: 12px;
     }
     .header-left h1 {
-      font-size: 1.4rem;
+      font-size: 1.9rem;
       font-weight: 700;
       letter-spacing: -0.3px;
     }
     .header-left p {
       color: var(--muted);
-      font-size: 0.8rem;
-      margin-top: 4px;
+      font-size: 1rem;
+      margin-top: 6px;
     }
     .header-right {
       display: flex;
@@ -66,32 +67,32 @@
     }
 
     /* ── Main layout ── */
-    .container { max-width: 960px; margin: 0 auto; }
+    .container { max-width: 1400px; margin: 0 auto; }
 
     /* ── Stage banner ── */
     .stage-banner {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 24px;
+      border-radius: 14px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
       display: flex;
       align-items: center;
       gap: 20px;
       flex-wrap: wrap;
     }
     .stage-badge {
-      font-size: 2.2rem;
+      font-size: 3rem;
       font-weight: 800;
-      padding: 8px 20px;
-      border-radius: 8px;
+      padding: 12px 28px;
+      border-radius: 10px;
       letter-spacing: -1px;
     }
     .stage-1 { background: #1c2a3a; color: var(--blue);   border: 1px solid #1f6feb; }
     .stage-2 { background: #1a2d1f; color: var(--green);  border: 1px solid #2ea043; }
     .stage-3 { background: #2d1f2d; color: var(--purple); border: 1px solid #8957e5; }
-    .stage-info h2 { font-size: 1.1rem; font-weight: 600; }
-    .stage-info p  { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+    .stage-info h2 { font-size: 1.5rem; font-weight: 600; }
+    .stage-info p  { font-size: 1rem; color: var(--muted); margin-top: 6px; }
     .meta-chips { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
     .chip {
       background: #21262d;
@@ -105,40 +106,40 @@
 
     /* ── Section title ── */
     .section-title {
-      font-size: 0.78rem;
+      font-size: 0.88rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       color: var(--muted);
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
     /* ── Scan result cards ── */
     .scan-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
     }
     .scan-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 18px;
+      border-radius: 12px;
+      padding: 22px 24px;
     }
     .scan-card .tool-name {
-      font-size: 0.78rem;
+      font-size: 0.9rem;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
     .scan-card .result-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
-    .scan-card .icon { font-size: 1.3rem; }
+    .scan-card .icon { font-size: 1.7rem; }
     .scan-card .result-text {
-      font-size: 1rem;
+      font-size: 1.3rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -148,29 +149,29 @@
     .unknown { color: var(--yellow); }
 
     /* ── Two-column section ── */
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
     @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
 
     .info-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 18px 20px;
+      border-radius: 12px;
+      padding: 24px 28px;
     }
     .info-card .card-title {
-      font-size: 0.78rem;
+      font-size: 0.95rem;
       color: var(--muted);
-      margin-bottom: 14px;
+      margin-bottom: 16px;
       font-weight: 600;
     }
     .big-number {
-      font-size: 2.4rem;
+      font-size: 3.2rem;
       font-weight: 800;
       line-height: 1;
     }
     .big-number.zero { color: var(--green); }
     .big-number.nonzero { color: var(--red); }
-    .sub-label { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+    .sub-label { font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
 
     .progress-bar-wrap { margin-top: 12px; }
     .progress-label {
@@ -218,17 +219,17 @@
     .commit-bar {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 18px;
-      margin-bottom: 24px;
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin-bottom: 28px;
       display: flex;
       align-items: center;
       gap: 16px;
       flex-wrap: wrap;
       font-size: 0.8rem;
     }
-    .commit-bar .label { color: var(--muted); }
-    .commit-bar .val   { color: var(--text); font-family: monospace; }
+    .commit-bar .label { color: var(--muted); font-size: 0.9rem; }
+    .commit-bar .val   { color: var(--text); font-family: monospace; font-size: 0.9rem; }
     .branch-tag {
       background: #1c2a3a;
       border: 1px solid #1f6feb;
@@ -241,7 +242,7 @@
 
     /* ── Footer ── */
     .footer {
-      max-width: 960px;
+      max-width: 1400px;
       margin: 32px auto 0;
       text-align: center;
       font-size: 0.75rem;

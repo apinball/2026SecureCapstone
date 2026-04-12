@@ -1,4 +1,4 @@
-FROM openquantumsafe/curl:0.11.0
+FROM openquantumsafe/curl@sha256:b91f49e027729cf6ba394f5ffe470341924708fe456b4549071ee6df043db89f
 
 USER root
 

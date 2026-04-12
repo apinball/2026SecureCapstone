@@ -9,7 +9,7 @@ RUN mkdir -p /certs && \
     chmod 600 /certs/dilithium3.key
 
 # Stage 2: OQS-Nginx 본체
-FROM openquantumsafe/nginx:0.11.0
+FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34
 
 USER root
 

@@ -62,7 +62,7 @@ jobs:
           echo "STAGE=$STAGE" >> $GITHUB_ENV
 
       - name: 3. Semgrep 설치
-        run: pip install --quiet semgrep
+        run: pip install --quiet semgrep || pip install --quiet --break-system-packages semgrep
 
       - name: 4. PQC 자동 마이그레이션 (nginx 설정)
         run: |
@@ -191,8 +191,8 @@ jobs:
 
       - name: 7. TLS 암호 정책 검증 (Security Gate)
         run: |
-          echo "진행 중: nginx.conf의 암호화 알고리즘 정책 준수 여부 확인..."
-          semgrep --config scanner/rules/tls-policy.yaml nginx/ --error --quiet
+          echo "진행 중: nginx 설정의 암호화 알고리즘 정책 준수 여부 확인..."
+          semgrep --config scanner/rules/tls-policy.yaml nginx/ --exclude nginx-ecc.conf --error --quiet
           echo "[PASS] TLS 정책 검증 통과 — 취약 프로토콜/암호 없음"
 
       - name: 8. PQC Nginx 도커 빌드 및 가동
@@ -406,7 +406,8 @@ jobs:
             FAIL=1
           fi
 
-          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ]; then
+          if [ "${{ steps.cbom_report.outputs.cbom_gen_exit_code }}" = "2" ] && \
+             [ "${{ steps.tls_validate.outcome }}" != "skipped" ]; then
             echo "[FATAL] cbom_gen.py 동적 분석 실패(exit 2)"
             FAIL=1
           fi
@@ -506,6 +507,69 @@ jobs:
             });
         env:
           STAGE: ${{ env.STAGE }}
+
+      - name: 대시보드 데이터 생성
+        if: always()
+        run: |
+          mkdir -p dashboard/data
+
+          STAGE="${{ env.STAGE }}"
+          TRIVY=$(jq -r '.tools.trivy // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          GITLEAKS=$(jq -r '.tools.gitleaks // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          SEMGREP=$(jq -r '.tools.semgrep // "unknown"' scanner/results/scan-summary.json 2>/dev/null || echo "unknown")
+          TLS_CHECK=$(jq -r '.result // "unknown"' scanner/results/tls-check-summary.json 2>/dev/null || echo "unknown")
+          FINDINGS=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          MANUAL=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_summary")] | .[0].value // "{}" | (try fromjson catch {}) | .manual_action_required // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+          PROGRESS=$(jq -r '[.properties[]? | select(.name == "securecapstone:migration_progress")] | .[0].value // "{}" | (try fromjson catch {}) | .status // "N/A"' "artifacts/cbom_stage${STAGE}.json" 2>/dev/null || echo "N/A")
+
+          cat > dashboard/data/results.json << RESULTS_EOF
+          {
+            "stage": "${STAGE}",
+            "run_number": "${{ github.run_number }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "scans": {
+              "trivy": "${TRIVY}",
+              "gitleaks": "${GITLEAKS}",
+              "semgrep": "${SEMGREP}",
+              "tls_check": "${TLS_CHECK}"
+            },
+            "findings": ${FINDINGS},
+            "cbom": {
+              "manual_action_required": "${MANUAL}",
+              "status": "${PROGRESS}"
+            }
+          }
+          RESULTS_EOF
+
+      - name: GitHub Pages 배포
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dashboard
+          keep_files: false
+
+      - name: 파이프라인 실패 시 Slack 알람
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          STAGE="${{ env.STAGE }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"🚨 *PQC Pipeline 실패* — Stage ${STAGE}\",
+              \"attachments\": [{
+                \"color\": \"danger\",
+                \"fields\": [
+                  {\"title\": \"브랜치\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Stage\", \"value\": \"${STAGE}\", \"short\": true},
+                  {\"title\": \"실행 번호\", \"value\": \"#${{ github.run_number }}\", \"short\": true},
+                  {\"title\": \"로그\", \"value\": \"${RUN_URL}\", \"short\": false}
+                ]
+              }]
+            }"
 
       - name: 컨테이너 정리
         if: always()

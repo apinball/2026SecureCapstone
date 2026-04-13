@@ -2,8 +2,14 @@
 
 # ============================================================
 # tls_check.sh — TLS policy verification script
-# Connects to server via curl and verifies negotiated cipher
-# suite matches the expected stage policy.
+# Verifies TLS policy via handshake success/failure outcomes.
+#
+# NOTE: openquantumsafe/curl:0.11.0 bundles OpenSSL < 3.2.0,
+# which does not support SSL_get_negotiated_group() — the key
+# group field is absent from curl -v output. Policy is therefore
+# verified by handshake result with specific --curves, not by
+# parsing the SSL connection line.
+#
 # Output: scanner/results/tls-check-summary.json
 # Exit:   0 = pass, 1 = fail
 # Usage:  tls_check.sh <host> <port> <stage>
@@ -25,94 +31,115 @@ echo "Host  : $HOST:$PORT"
 echo "Stage : $STAGE"
 echo ""
 
-# Set expected curves per stage
-if [ "$STAGE" = "1" ] || [ "$STAGE" = "ecc" ]; then
-    CURVES="x25519:prime256v1:secp384r1"
-    STAGE_NUM=1
-elif [ "$STAGE" = "2" ] || [ "$STAGE" = "hybrid" ]; then
-    CURVES="X25519MLKEM768:x25519"
-    STAGE_NUM=2
-elif [ "$STAGE" = "3" ] || [ "$STAGE" = "pq" ]; then
-    CURVES="p521_mlkem1024:p384_mlkem768"
-    STAGE_NUM=3
-else
-    echo "[ERROR] Invalid stage: $STAGE — use 1|ecc, 2|hybrid, 3|pq"
-    exit 1
-fi
+case "$STAGE" in
+    1|ecc)     STAGE_NUM=1 ;;
+    2|hybrid)  STAGE_NUM=2 ;;
+    3|pq)      STAGE_NUM=3 ;;
+    *)
+        echo "[ERROR] Invalid stage: $STAGE — use 1|ecc, 2|hybrid, 3|pq"
+        exit 1
+        ;;
+esac
 
-# Connect and get TLS negotiation result via curl
-TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT INT TERM
+# Temp files for curl output
+TMPFILE_PQ=$(mktemp)
+TMPFILE_CLASSIC=$(mktemp)
+trap 'rm -f "$TMPFILE_PQ" "$TMPFILE_CLASSIC"' EXIT INT TERM
 
-curl -k -v --connect-timeout 5 --curves "$CURVES" \
-    https://"$HOST":"$PORT"/ > "$TMPFILE" 2>&1
+# Helper: run curl with given curves, store output in file
+# Returns curl exit code
+do_curl() {
+    local curves="$1" outfile="$2"
+    curl -k -v --connect-timeout 5 --curves "$curves" \
+        https://"$HOST":"$PORT"/ > "$outfile" 2>&1
+}
 
-CURL_EXIT=$?
+# Extract TLS protocol from curl -v SSL line (always present regardless of curl version)
+get_protocol() {
+    grep "SSL connection using" "$1" | head -1 | grep -oE 'TLSv[0-9.]+'
+}
 
-# Fail if connection failed
-if [ "$CURL_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE"; then
-    echo "[ERROR] TLS connection to $HOST:$PORT failed"
-    cat "$TMPFILE" | tail -5
-    exit 1
-fi
-
-echo ""
-
-# Parse negotiated values from curl -v output
-# Format: "SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519MLKEM768 / ..."
-SSL_LINE=$(grep "SSL connection using" "$TMPFILE" | head -1)
-PROTOCOL=$(echo "$SSL_LINE" | awk -F'/' '{print $1}' | grep -oE 'TLSv[0-9.]+')
-CIPHER=$(echo "$SSL_LINE" | awk -F'/' '{print $2}' | tr -d ' ')
-GROUP=$(echo "$SSL_LINE" | awk -F'/' '{print $3}' | tr -d ' ')
-
-# Handle empty values
-PROTOCOL=${PROTOCOL:-Unknown}
-CIPHER=${CIPHER:-Unknown}
-GROUP=${GROUP:-Unknown}
-
-echo "=== Negotiated Values ==="
-echo "Protocol : $PROTOCOL"
-echo "Cipher   : $CIPHER"
-echo "Group    : $GROUP"
-echo ""
-
-GROUP_LOWER=$(echo "$GROUP" | tr '[:upper:]' '[:lower:]')
 RESULT="fail"
 FAIL_REASON=""
+DETAIL=""
+PROTOCOL="Unknown"
 
-# Policy check per stage
+# ── Stage 1: Classical ECC ─────────────────────────────────
 if [ "$STAGE_NUM" = "1" ]; then
-    # Stage 1: must NOT have MLKEM
-    if echo "$GROUP_LOWER" | grep -qi "mlkem"; then
-        FAIL_REASON="Stage 1 policy violation: MLKEM group negotiated (PQC not expected)"
+    # Test 1: Classical curves must connect
+    echo "[Stage 1] classical connection test"
+    do_curl "x25519:prime256v1:secp384r1" "$TMPFILE_PQ"
+    ECC_EXIT=$?
+
+    # Test 2: PQ-only curves must fail (server should not support MLKEM)
+    echo "[Stage 1] PQ-only request (must be rejected)"
+    do_curl "X25519MLKEM768" "$TMPFILE_CLASSIC"
+    PQ_EXIT=$?
+
+    if [ "$ECC_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_PQ"; then
+        FAIL_REASON="Stage 1: classical TLS connection failed"
+    elif [ "$PQ_EXIT" -eq 0 ] && grep -q "SSL connection using" "$TMPFILE_CLASSIC"; then
+        FAIL_REASON="Stage 1: PQ-only connection succeeded — server should not support MLKEM"
     else
+        PROTOCOL=$(get_protocol "$TMPFILE_PQ")
+        PROTOCOL=${PROTOCOL:-Unknown}
+        DETAIL="classical handshake: ok, PQ rejected: ok"
         RESULT="pass"
     fi
 
+# ── Stage 2: Hybrid PQC ────────────────────────────────────
 elif [ "$STAGE_NUM" = "2" ]; then
-    # Stage 2: must have MLKEM (X25519MLKEM768 hybrid)
-    if ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
-        FAIL_REASON="Stage 2 policy violation: X25519MLKEM768 not negotiated"
+    # Test 1: PQ-only client (no classical fallback) must succeed
+    # Proves the server actually negotiated MLKEM, not x25519 fallback
+    echo "[Stage 2] PQ-only request (X25519MLKEM768, no fallback)"
+    do_curl "X25519MLKEM768" "$TMPFILE_PQ"
+    PQ_EXIT=$?
+
+    # Test 2: Classical-only client must also succeed (hybrid allows fallback)
+    echo "[Stage 2] classical-only request (x25519:prime256v1)"
+    do_curl "x25519:prime256v1:secp384r1" "$TMPFILE_CLASSIC"
+    CLASSIC_EXIT=$?
+
+    PROTOCOL=$(get_protocol "$TMPFILE_PQ")
+    PROTOCOL=${PROTOCOL:-Unknown}
+
+    if [ "$PQ_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_PQ"; then
+        FAIL_REASON="Stage 2: PQ-only request (X25519MLKEM768) failed — server may not support hybrid PQC"
+    elif [ "$CLASSIC_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_CLASSIC"; then
+        FAIL_REASON="Stage 2: classical-only request failed — hybrid fallback not working"
     else
+        DETAIL="PQ-only handshake: ok, classical fallback: ok"
         RESULT="pass"
     fi
 
+# ── Stage 3: PQ-only (no classical fallback allowed) ───────
 elif [ "$STAGE_NUM" = "3" ]; then
-    # Stage 3: must have MLKEM, must NOT have classical-only group
-    if ! echo "$GROUP_LOWER" | grep -qi "mlkem"; then
-        FAIL_REASON="Stage 3 policy violation: no MLKEM group negotiated"
-    elif echo "$GROUP_LOWER" | grep -qiE "^x25519$|^prime256v1$|^secp384r1$"; then
-        FAIL_REASON="Stage 3 policy violation: classical fallback group negotiated"
+    # Test 1: PQ curves must succeed
+    echo "[Stage 3] PQ request (mlkem1024)"
+    do_curl "mlkem1024" "$TMPFILE_PQ"
+    PQ_EXIT=$?
+
+    # Test 2: Classical-only must fail (server enforces PQ-only)
+    echo "[Stage 3] classical-only request (must be rejected)"
+    do_curl "x25519:prime256v1:secp384r1" "$TMPFILE_CLASSIC"
+    CLASSIC_EXIT=$?
+
+    PROTOCOL=$(get_protocol "$TMPFILE_PQ")
+    PROTOCOL=${PROTOCOL:-Unknown}
+
+    if [ "$PQ_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_PQ"; then
+        FAIL_REASON="Stage 3: PQ handshake (mlkem1024) failed"
+    elif [ "$CLASSIC_EXIT" -eq 0 ] && grep -q "SSL connection using" "$TMPFILE_CLASSIC"; then
+        FAIL_REASON="Stage 3: classical-only connection succeeded — PQ-only enforcement not working"
     else
+        DETAIL="PQ handshake: ok, classical rejected: ok"
         RESULT="pass"
     fi
 fi
 
-# Also fail if protocol is not TLS 1.3 for stage 2/3
-if [ "$STAGE_NUM" != "1" ] && [ "$PROTOCOL" != "TLSv1.3" ]; then
-    if [ "$RESULT" = "pass" ]; then
-        FAIL_REASON="Stage $STAGE_NUM policy violation: TLSv1.3 required but got $PROTOCOL"
-    fi
+# TLSv1.3 required for Stage 2/3 (skip if protocol undetected — curl version limitation)
+if [ "$STAGE_NUM" != "1" ] && [ "$PROTOCOL" != "Unknown" ] && [ "$PROTOCOL" != "TLSv1.3" ]; then
+    FAIL_REASON="Stage $STAGE_NUM: TLSv1.3 required but got $PROTOCOL"
     RESULT="fail"
 fi
 
@@ -126,8 +153,7 @@ summary = {
     'target': '$HOST:$PORT',
     'negotiated': {
         'protocol': '$PROTOCOL',
-        'cipher': '$CIPHER',
-        'group': '$GROUP'
+        'detail': '$DETAIL'
     },
     'fail_reason': '$FAIL_REASON'
 }
@@ -135,16 +161,12 @@ with open('$SUMMARY_FILE', 'w') as f:
     json.dump(summary, f, indent=2)
 "
 
-# Print result
+echo ""
 echo "=== Result ==="
 if [ "$RESULT" = "pass" ]; then
-    echo "[PASS] Stage $STAGE_NUM policy satisfied."
-else
-    echo "[FAIL] $FAIL_REASON"
-fi
-
-if [ "$RESULT" = "pass" ]; then
+    echo "[PASS] Stage $STAGE_NUM policy satisfied. $DETAIL"
     exit 0
 else
+    echo "[FAIL] $FAIL_REASON"
     exit 1
 fi

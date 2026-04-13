@@ -1,15 +1,15 @@
-FROM openquantumsafe/oqs-ossl3:0.10.1 AS cert-gen
-
-# Dilithium3 인증서 생성 (Stage 3 PQ 전용)
+# Stage 1: Dilithium3 인증서 생성 (OQS-OpenSSL 사용)
+FROM openquantumsafe/oqs-ossl3:0.10.1 AS cert-builder
 RUN mkdir -p /certs && \
-    openssl req -x509 -newkey dilithium3 \
+    openssl req -x509 -newkey dilithium3 -days 365 \
         -keyout /certs/dilithium3.key \
-        -out /certs/dilithium3.crt \
-        -days 365 -nodes \
-        -subj "/C=KR/O=QuantumJump/CN=localhost"
+        -out    /certs/dilithium3.crt \
+        -subj "/C=KR/O=QuantumJump/CN=localhost" \
+        -nodes && \
+    chmod 600 /certs/dilithium3.key
 
-
-FROM openquantumsafe/nginx:0.11.0
+# Stage 2: OQS-Nginx 본체
+FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34
 
 USER root
 
@@ -22,9 +22,9 @@ RUN apk add --no-cache openssl curl && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes
 
-# Dilithium3 인증서 복사 (cert-gen 스테이지에서)
-COPY --from=cert-gen /certs/dilithium3.key /etc/nginx/certs/dilithium3.key
-COPY --from=cert-gen /certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
+# Dilithium3 인증서 복사 (Stage 3 PQ-only 전용)
+COPY --from=cert-builder /certs/dilithium3.key /etc/nginx/certs/dilithium3.key
+COPY --from=cert-builder /certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
 
 # 설정 파일을 컨테이너 안으로 복사
 COPY nginx.conf /opt/nginx/nginx-conf/nginx.conf

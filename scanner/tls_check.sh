@@ -115,8 +115,8 @@ elif [ "$STAGE_NUM" = "2" ]; then
 # ── Stage 3: PQ-only (no classical fallback allowed) ───────
 elif [ "$STAGE_NUM" = "3" ]; then
     # Test 1: PQ curves must succeed
-    echo "[Stage 3] PQ request (p521_mlkem1024:p384_mlkem768)"
-    do_curl "p521_mlkem1024:p384_mlkem768" "$TMPFILE_PQ"
+    echo "[Stage 3] PQ request (mlkem1024)"
+    do_curl "mlkem1024" "$TMPFILE_PQ"
     PQ_EXIT=$?
 
     # Test 2: Classical-only must fail (server enforces PQ-only)
@@ -128,7 +128,7 @@ elif [ "$STAGE_NUM" = "3" ]; then
     PROTOCOL=${PROTOCOL:-Unknown}
 
     if [ "$PQ_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_PQ"; then
-        FAIL_REASON="Stage 3: PQ handshake (p521_mlkem1024:p384_mlkem768) failed"
+        FAIL_REASON="Stage 3: PQ handshake (mlkem1024) failed"
     elif [ "$CLASSIC_EXIT" -eq 0 ] && grep -q "SSL connection using" "$TMPFILE_CLASSIC"; then
         FAIL_REASON="Stage 3: classical-only connection succeeded — PQ-only enforcement not working"
     else

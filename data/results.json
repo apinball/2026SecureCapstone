@@ -1,8 +1,8 @@
 {
-  "stage": "3",
-  "run_number": "255",
-  "timestamp": "2026-04-13T04:32:04Z",
-  "commit": "5ba4df349b3978d6a412ef81f3a4cbe89d2dd813",
+  "stage": "2",
+  "run_number": "257",
+  "timestamp": "2026-04-13T10:20:15Z",
+  "commit": "b3994189d66e17763b31cfbba44fa83349ab6b2e",
   "branch": "feature/stage3ca",
   "scans": {
     "trivy": "pass",
@@ -13,6 +13,6 @@
   "findings": 0,
   "cbom": {
     "manual_action_required": "0",
-    "status": "BASELINE"
+    "status": "UNCHANGED"
   }
 }

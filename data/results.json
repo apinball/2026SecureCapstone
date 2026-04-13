@@ -1,9 +1,9 @@
 {
   "stage": "2",
-  "run_number": "257",
-  "timestamp": "2026-04-13T10:20:15Z",
-  "commit": "b3994189d66e17763b31cfbba44fa83349ab6b2e",
-  "branch": "feature/stage3ca",
+  "run_number": "259",
+  "timestamp": "2026-04-13T11:20:04Z",
+  "commit": "7bd415b020237b551c777fbd1e4a656a1165e783",
+  "branch": "develop",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",

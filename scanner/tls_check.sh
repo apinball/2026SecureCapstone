@@ -66,16 +66,24 @@ PROTOCOL="Unknown"
 
 # ── Stage 1: Classical ECC ─────────────────────────────────
 if [ "$STAGE_NUM" = "1" ]; then
+    # Test 1: Classical curves must connect
     echo "[Stage 1] classical connection test"
     do_curl "x25519:prime256v1:secp384r1" "$TMPFILE_PQ"
     ECC_EXIT=$?
 
+    # Test 2: PQ-only curves must fail (server should not support MLKEM)
+    echo "[Stage 1] PQ-only request (must be rejected)"
+    do_curl "X25519MLKEM768" "$TMPFILE_CLASSIC"
+    PQ_EXIT=$?
+
     if [ "$ECC_EXIT" -ne 0 ] || ! grep -q "SSL connection using" "$TMPFILE_PQ"; then
         FAIL_REASON="Stage 1: classical TLS connection failed"
+    elif [ "$PQ_EXIT" -eq 0 ] && grep -q "SSL connection using" "$TMPFILE_CLASSIC"; then
+        FAIL_REASON="Stage 1: PQ-only connection succeeded — server should not support MLKEM"
     else
         PROTOCOL=$(get_protocol "$TMPFILE_PQ")
         PROTOCOL=${PROTOCOL:-Unknown}
-        DETAIL="classical handshake ok"
+        DETAIL="classical handshake: ok, PQ rejected: ok"
         RESULT="pass"
     fi
 

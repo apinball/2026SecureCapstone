@@ -1,5 +1,5 @@
-# Stage 1: Dilithium3 인증서 생성 (OQS-OpenSSL 사용)
-FROM openquantumsafe/oqs-ossl3:0.10.1 AS cert-builder
+# Stage 1: Nginx 버전과 호환되도록 OQS-OpenSSL 버전을 0.9.0으로 다운그레이드
+FROM openquantumsafe/oqs-ossl3:0.9.0 AS cert-builder
 RUN mkdir -p /certs && \
     openssl req -x509 -newkey dilithium3 -days 365 \
         -keyout /certs/dilithium3.key \

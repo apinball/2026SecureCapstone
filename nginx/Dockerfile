@@ -1,6 +1,9 @@
-# Stage 1: Nginx 버전과 호환되도록 OQS-OpenSSL 버전을 0.9.0으로 다운그레이드
-FROM openquantumsafe/oqs-ossl3:0.9.0 AS cert-builder
+# Stage 1: 프로젝트에서 호환성이 검증된 OQS-Curl 구버전 이미지를 빌더로 활용
+FROM openquantumsafe/curl@sha256:b91f49e027729cf6ba394f5ffe470341924708fe456b4549071ee6df043db89f AS cert-builder
+
+USER root
 RUN mkdir -p /certs && \
+    # 이 이미지 내부에 있는 구버전 OQS 엔진으로 dilithium3 인증서를 생성합니다.
     openssl req -x509 -newkey dilithium3 -days 365 \
         -keyout /certs/dilithium3.key \
         -out    /certs/dilithium3.crt \

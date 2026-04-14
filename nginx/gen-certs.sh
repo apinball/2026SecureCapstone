@@ -35,7 +35,7 @@ docker run --rm \
     /opt/oqssa/bin/openssl req \
       -provider oqsprovider \
       -provider default \
-      -x509 -newkey dilithium3 \
+      -x509 -newkey mldsa65 \
       -keyout /certs/dilithium3.key \
       -out    /certs/dilithium3.crt \
       -days 365 -nodes \
@@ -43,7 +43,7 @@ docker run --rm \
     chmod 600 /certs/dilithium3.key && \
     chmod 644 /certs/dilithium3.crt
   "
-echo "    → dilithium3.key / dilithium3.crt 생성 완료"
+echo "    → PQC 인증서 (mldsa65 알고리즘) 생성 완료"
 
 echo ""
 echo "=== 완료 ==="

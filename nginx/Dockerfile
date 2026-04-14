@@ -13,7 +13,7 @@ RUN apk add --no-cache openssl curl && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes
 
-# 💡 핵심: 빌드 과정에서 생성하지 않고, Runner에 있는 파일을 복사만 함
+# 빌드 과정에서 생성하지 않고, Runner에 있는 파일을 복사만 함
 COPY certs/dilithium3.key /etc/nginx/certs/dilithium3.key
 COPY certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
 
@@ -49,8 +49,8 @@ RUN apk add --no-cache openssl curl && \
         -nodes
 
 # Dilithium3 인증서 복사 (Stage 3 PQ-only 전용)
-COPY --from=cert-builder /certs/dilithium3.key /etc/nginx/certs/dilithium3.key
-COPY --from=cert-builder /certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
+COPY certs/dilithium3.key /etc/nginx/certs/dilithium3.key
+COPY certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
 
 # 설정 파일을 컨테이너 안으로 복사
 COPY nginx.conf /opt/nginx/nginx-conf/nginx.conf

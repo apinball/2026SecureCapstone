@@ -30,14 +30,18 @@ echo "    → server.key / server.crt 생성 완료"
 echo "=== [2/2] Dilithium3 인증서 생성 (Stage 3 PQ-only 전용) ==="
 docker run --rm \
   -v "$CERTS_DIR:/certs" \
-  openquantumsafe/oqs-ossl3:latest \
+  openquantumsafe/curl:latest \
   sh -c "
-    openssl req -x509 -newkey dilithium3 \
+    openssl req \
+      -provider oqsprovider \
+      -provider default \
+      -x509 -newkey dilithium3 \
       -keyout /certs/dilithium3.key \
       -out    /certs/dilithium3.crt \
       -days 365 -nodes \
-      -subj '/C=KR/O=QuantumJump/CN=localhost'
-    chmod 600 /certs/dilithium3.key; chmod 644 /certs/dilithium3.crt
+      -subj '/C=KR/O=QuantumJump/CN=localhost' && \
+    chmod 600 /certs/dilithium3.key && \
+    chmod 644 /certs/dilithium3.crt
   "
 echo "    → dilithium3.key / dilithium3.crt 생성 완료"
 

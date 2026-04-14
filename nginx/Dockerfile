@@ -2,9 +2,8 @@
 FROM openquantumsafe/curl@sha256:b91f49e027729cf6ba394f5ffe470341924708fe456b4549071ee6df043db89f AS cert-builder
 USER root
 RUN mkdir -p /certs && \
-    OPENSSL_CONF=/opt/oqssa/ssl/openssl.cnf \
     OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
-    openssl req \
+    /opt/oqssa/bin/openssl req \
         -provider oqsprovider \
         -provider default \
         -x509 -newkey dilithium3 -days 365 \

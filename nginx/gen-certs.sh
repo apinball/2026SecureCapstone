@@ -25,9 +25,9 @@ openssl req -x509 -newkey rsa:2048 -days 365 \
 echo "    → server.key / server.crt 생성 완료"
 
 # ─────────────────────────────────────────────────────────
-# Stage 3 전용: Dilithium3 인증서 (OQS-OpenSSL via Docker)
+# Stage 3 전용: PQC 인증서 생성 (OQS-OpenSSL via Docker)
 # ─────────────────────────────────────────────────────────
-docker run --rm \
+docker run --rm -u root \
   -v "$CERTS_DIR:/certs" \
   openquantumsafe/curl:latest \
   sh -c "

@@ -25,14 +25,14 @@ openssl req -x509 -newkey rsa:2048 -days 365 \
 echo "    → server.key / server.crt 생성 완료"
 
 # ─────────────────────────────────────────────────────────
-# Stage 3 전용: PQC 인증서 생성 (OpenSSL 1.1.1 OQS Fork 기반)
+# Stage 3 전용: PQC 인증서 생성 (Hybrid: ECC + PQC)
 # ─────────────────────────────────────────────────────────
 docker run --rm -u root \
   -v "$CERTS_DIR:/certs" \
   openquantumsafe/curl:0.7.2 \
   sh -c "
     openssl req \
-      -x509 -newkey dilithium3 \
+      -x509 -newkey p256_dilithium3 \
       -keyout /certs/dilithium3.key \
       -out    /certs/dilithium3.crt \
       -days 365 -nodes \
@@ -40,7 +40,7 @@ docker run --rm -u root \
     chmod 600 /certs/dilithium3.key && \
     chmod 644 /certs/dilithium3.crt
   "
-echo "    → PQC 인증서 (dilithium3 알고리즘) 생성 완료"
+echo "    → PQC 하이브리드 인증서 (p256_dilithium3) 생성 완료"
 
 echo ""
 echo "=== 완료 ==="

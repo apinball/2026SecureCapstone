@@ -29,7 +29,7 @@ echo "    → server.key / server.crt 생성 완료"
 # ─────────────────────────────────────────────────────────
 docker run --rm -u root \
   -v "$CERTS_DIR:/certs" \
-  openquantumsafe/curl:0.15.0 \
+  openquantumsafe/curl:0.8.0 \
   sh -c "
     OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
     /opt/oqssa/bin/openssl req \

@@ -1,8 +1,8 @@
 # Stage 1: cert-builder
-FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34 AS cert-builder
+FROM openquantumsafe/curl@sha256:b91f49e027729cf6ba394f5ffe470341924708fe456b4549071ee6df043db89f AS cert-builder
 USER root
 RUN mkdir -p /certs && \
-    /opt/oqssa/bin/openssl req \
+    openssl req \
         -provider oqsprovider \
         -provider default \
         -x509 -newkey dilithium3 -days 365 \
@@ -11,6 +11,7 @@ RUN mkdir -p /certs && \
         -subj "/C=KR/O=QuantumJump/CN=localhost" \
         -nodes && \
     chmod 600 /certs/dilithium3.key
+
 
 # Stage 2: OQS-Nginx 본체
 FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34

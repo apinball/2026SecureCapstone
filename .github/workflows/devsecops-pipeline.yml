@@ -210,6 +210,20 @@ jobs:
           echo "pqc-proxy 준비 완료"
           docker compose ps
 
+      - name: (실패 시) pqc-proxy 에러 로그 출력
+        if: failure()
+        run: |
+          echo "======================================"
+          echo "1. pqc-proxy 컨테이너 에러 로그 확인"
+          echo "======================================"
+          docker logs pqc-proxy
+          
+          echo ""
+          echo "======================================"
+          echo "2. 헬스체크 실패 상세 로그 확인"
+          echo "======================================"
+          docker inspect --format "{{json .State.Health}}" pqc-proxy | jq
+
       - name: 9. 배포 후 동적 검증 (TLS 협상 확인)
         id: tls_validate
         continue-on-error: true

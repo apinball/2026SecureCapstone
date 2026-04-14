@@ -1,6 +1,6 @@
 # Stage 1: cert-builder
 # OQS-Nginx 본체만 사용 (Stage 1 cert-builder 삭제)
-FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34
+FROM openquantumsafe/nginx:latest
 
 USER root
 

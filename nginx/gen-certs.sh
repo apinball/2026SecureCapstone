@@ -25,16 +25,13 @@ openssl req -x509 -newkey rsa:2048 -days 365 \
 echo "    → server.key / server.crt 생성 완료"
 
 # ─────────────────────────────────────────────────────────
-# Stage 3 전용: PQC 인증서 생성 (OQS-OpenSSL via Docker)
+# Stage 3 전용: PQC 인증서 생성 (OpenSSL 1.1.1 OQS Fork 기반)
 # ─────────────────────────────────────────────────────────
 docker run --rm -u root \
   -v "$CERTS_DIR:/certs" \
-  openquantumsafe/curl:0.8.0 \
+  openquantumsafe/curl:0.7.2 \
   sh -c "
-    OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
-    /opt/oqssa/bin/openssl req \
-      -provider oqsprovider \
-      -provider default \
+    openssl req \
       -x509 -newkey dilithium3 \
       -keyout /certs/dilithium3.key \
       -out    /certs/dilithium3.crt \

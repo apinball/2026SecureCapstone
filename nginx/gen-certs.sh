@@ -27,14 +27,12 @@ echo "    → server.key / server.crt 생성 완료"
 # ─────────────────────────────────────────────────────────
 # Stage 3 전용: Dilithium3 인증서 (OQS-OpenSSL via Docker)
 # ─────────────────────────────────────────────────────────
-echo "=== [2/2] Dilithium3 인증서 생성 (Stage 3 PQ-only 전용) ==="
 docker run --rm \
   -v "$CERTS_DIR:/certs" \
   openquantumsafe/curl:latest \
   sh -c "
-    OPENSSL_CONF=/opt/oqssa/ssl/openssl.cnf \
     OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
-    openssl req \
+    /opt/oqssa/bin/openssl req \
       -provider oqsprovider \
       -provider default \
       -x509 -newkey dilithium3 \

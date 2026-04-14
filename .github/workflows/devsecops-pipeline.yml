@@ -200,11 +200,19 @@ jobs:
           # ... 기존 내용 유지
       - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
+          echo "진행 중: PQC 인증서 사전 생성 (gen-certs.sh 실행)..."
+          # 💡 도커 빌드 전에 인증서를 먼저 생성하여 nginx/certs/ 에 위치시킵니다.
+          # (스크립트 경로가 프로젝트 구조에 맞는지 확인해주세요. 예: sh nginx/gen-certs.sh)
+          sh nginx/gen-certs.sh
+
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."
           docker pull openquantumsafe/nginx
           docker pull openquantumsafe/curl
+          
+          # 이제 빌드 시 로컬에 있는 certs/ 디렉토리의 파일이 COPY 됩니다.
           TLS_STAGE=${{ env.STAGE }} docker compose build
           TLS_STAGE=${{ env.STAGE }} docker compose up -d
+          
           echo "pqc-proxy healthcheck 대기 중..."
           timeout 60 sh -c \
             'until [ "$(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)" = "healthy" ]; do

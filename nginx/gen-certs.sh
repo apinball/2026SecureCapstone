@@ -29,13 +29,13 @@ echo "    → server.key / server.crt 생성 완료"
 # ─────────────────────────────────────────────────────────
 docker run --rm -u root \
   -v "$CERTS_DIR:/certs" \
-  openquantumsafe/curl:latest \
+  openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34 \
   sh -c "
     OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
     /opt/oqssa/bin/openssl req \
       -provider oqsprovider \
       -provider default \
-      -x509 -newkey mldsa65 \
+      -x509 -newkey dilithium3 \
       -keyout /certs/dilithium3.key \
       -out    /certs/dilithium3.crt \
       -days 365 -nodes \
@@ -43,7 +43,7 @@ docker run --rm -u root \
     chmod 600 /certs/dilithium3.key && \
     chmod 644 /certs/dilithium3.crt
   "
-echo "    → PQC 인증서 (mldsa65 알고리즘) 생성 완료"
+echo "    → PQC 인증서 (dilithium3 알고리즘) 생성 완료"
 
 echo ""
 echo "=== 완료 ==="

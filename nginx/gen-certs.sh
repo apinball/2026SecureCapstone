@@ -32,6 +32,8 @@ docker run --rm \
   -v "$CERTS_DIR:/certs" \
   openquantumsafe/curl:latest \
   sh -c "
+    OPENSSL_CONF=/opt/oqssa/ssl/openssl.cnf \
+    OPENSSL_MODULES=/opt/oqssa/lib/ossl-modules \
     openssl req \
       -provider oqsprovider \
       -provider default \

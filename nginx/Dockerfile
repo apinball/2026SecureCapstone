@@ -1,12 +1,10 @@
-# Stage 1: Nginx 버전과 100% 완벽히 일치하는 이미지를 빌더로 사용
+# Stage 1: cert-builder
 FROM openquantumsafe/nginx@sha256:d02e7d6ec43bc3ea1c174f24d35af0e60a29eec0c9e6c39f356dba8b43f19f34 AS cert-builder
-
 USER root
 RUN mkdir -p /certs && \
-    # 1. Alpine 기본 openssl이 아닌, Nginx 내부에 내장된 전용 OQS 엔진을 최우선으로 잡습니다.
-    export PATH=/opt/oqssa/bin:$PATH && \
-    # 2. OpenSSL 3 규칙에 따라 양자내성암호 모듈(-provider oqsprovider)을 강제로 활성화합니다.
-    openssl req -provider oqsprovider -provider default \
+    /opt/oqssa/bin/openssl req \
+        -provider oqsprovider \
+        -provider default \
         -x509 -newkey dilithium3 -days 365 \
         -keyout /certs/dilithium3.key \
         -out    /certs/dilithium3.crt \

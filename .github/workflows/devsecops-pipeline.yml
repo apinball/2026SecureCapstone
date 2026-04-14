@@ -195,6 +195,19 @@ jobs:
           semgrep --config scanner/rules/tls-policy.yaml nginx/ --exclude nginx-ecc.conf --error --quiet
           echo "[PASS] TLS 정책 검증 통과 — 취약 프로토콜/암호 없음"
 
+      - name: 7.5. OQS-curl 이미지 내부 경로 탐색 (디버그)
+        run: |
+          docker run --rm openquantumsafe/curl:latest sh -c "
+            echo '=== openssl 위치 ===' && which openssl && openssl version &&
+            echo '=== oqsprovider.so 위치 ===' && find / -name 'oqsprovider.so' 2>/dev/null &&
+            echo '=== openssl.cnf 위치 ===' && find / -name 'openssl.cnf' 2>/dev/null &&
+            echo '=== ossl-modules 디렉토리 ===' && find / -name 'ossl-modules' -type d 2>/dev/null &&
+            echo '=== /opt 구조 ===' && ls /opt/ 2>/dev/null
+          "
+
+      - name: 8. PQC Nginx 도커 빌드 및 가동
+        run: |
+          # ... 기존 내용 유지
       - name: 8. PQC Nginx 도커 빌드 및 가동
         run: |
           echo "진행 중: OQS-Nginx 컨테이너 임시 구동..."

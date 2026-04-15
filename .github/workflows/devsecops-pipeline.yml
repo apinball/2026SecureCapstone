@@ -262,6 +262,11 @@ jobs:
           docker exec tls-tester perf_check.sh proxy-server 443 ${{ env.STAGE }} $BASELINE_ARG
           PERF_EXIT=$?
           set -e
+          if [ "$PERF_EXIT" -ne 0 ]; then
+            echo "::warning::perf_check.sh exited with status $PERF_EXIT. Continuing so artifacts and rollback evaluation can still run."
+          else
+            echo "perf_check.sh completed successfully."
+          fi
 
           docker cp tls-tester:/usr/local/bin/results/perf-check-summary.json \
             perf-rollback/results/perf-check-summary.json || true

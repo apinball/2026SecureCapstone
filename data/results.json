@@ -1,14 +1,14 @@
 {
-  "stage": "2",
-  "run_number": "299",
-  "timestamp": "2026-04-15T05:15:29Z",
+  "stage": "1",
+  "run_number": "300",
+  "timestamp": "2026-04-15T05:30:59Z",
   "commit": "dd8ce786ce690c92705bbcb9909664f744d61fd7",
   "branch": "feature/perf-check-rollback",
   "scans": {
-    "trivy": "pass",
-    "gitleaks": "pass",
-    "semgrep": "pass",
-    "tls_check": "pass"
+    "trivy": "unknown",
+    "gitleaks": "unknown",
+    "semgrep": "unknown",
+    "tls_check": "unknown"
   },
   "findings": 0,
   "cbom": {

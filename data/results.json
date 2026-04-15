@@ -1,8 +1,8 @@
 {
   "stage": "2",
-  "run_number": "291",
-  "timestamp": "2026-04-15T02:55:56Z",
-  "commit": "8228d1398169edec7ac2c3b4b1a76fbcc212a85e",
+  "run_number": "293",
+  "timestamp": "2026-04-15T03:06:56Z",
+  "commit": "082edfdccfa9c3db2d6d660f10c149624c561a79",
   "branch": "feature/scanner",
   "scans": {
     "trivy": "pass",
@@ -13,6 +13,6 @@
   "findings": 1,
   "cbom": {
     "manual_action_required": "1",
-    "status": "REGRESSED"
+    "status": "UNCHANGED"
   }
 }

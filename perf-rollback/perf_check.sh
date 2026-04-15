@@ -126,7 +126,7 @@ if baseline_file and os.path.isfile(baseline_file):
 # Stage 1 is always "baseline" (not a rollback target)
 fail_reason = ""
 
-if stage == 1 or not baseline_file:
+if stage == 1:
     result = "baseline"
 else:
     result = "pass"

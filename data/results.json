@@ -1,18 +1,18 @@
 {
   "stage": "2",
-  "run_number": "293",
-  "timestamp": "2026-04-15T03:06:56Z",
-  "commit": "082edfdccfa9c3db2d6d660f10c149624c561a79",
+  "run_number": "295",
+  "timestamp": "2026-04-15T03:24:37Z",
+  "commit": "dd622b5a071978c0eddd8d897c7a291a1a8f6b94",
   "branch": "feature/scanner",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",
     "semgrep": "pass",
-    "tls_check": "unknown"
+    "tls_check": "pass"
   },
-  "findings": 1,
+  "findings": 0,
   "cbom": {
-    "manual_action_required": "1",
-    "status": "UNCHANGED"
+    "manual_action_required": "0",
+    "status": "IMPROVED"
   }
 }

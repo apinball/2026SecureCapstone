@@ -1,9 +1,9 @@
 {
   "stage": "2",
-  "run_number": "295",
-  "timestamp": "2026-04-15T03:24:37Z",
-  "commit": "dd622b5a071978c0eddd8d897c7a291a1a8f6b94",
-  "branch": "feature/scanner",
+  "run_number": "297",
+  "timestamp": "2026-04-15T04:09:02Z",
+  "commit": "7bd415b020237b551c777fbd1e4a656a1165e783",
+  "branch": "feature/perf-check-rollback",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",
@@ -13,6 +13,6 @@
   "findings": 0,
   "cbom": {
     "manual_action_required": "0",
-    "status": "IMPROVED"
+    "status": "UNCHANGED"
   }
 }

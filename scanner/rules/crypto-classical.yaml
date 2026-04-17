@@ -1,5 +1,5 @@
 rules:
-  # ── Python — 고전 암호 탐지 ──────────────────────────────────────────────
+  # Python — classical crypto detection
 
   - id: python-rsa-usage
     message: "RSA usage detected — consider migrating to ML-KEM (FIPS 203) for key encapsulation or ML-DSA (FIPS 204) for signatures"
@@ -46,7 +46,7 @@ rules:
           - pattern: from cryptography.hazmat.primitives.asymmetric import ec
           - pattern: ec.generate_private_key(...)
 
-  # ── Java — 고전 암호 탐지 ────────────────────────────────────────────────
+  # Java — classical crypto detection
 
   - id: java-rsa-keygen
     message: "RSA KeyPairGenerator detected — consider post-quantum alternatives (ML-KEM, ML-DSA)"
@@ -81,7 +81,7 @@ rules:
     severity: WARNING
     pattern: KeyPairGenerator.getInstance("EC")
 
-  # ── 범용 — 설정 파일 고전 암호 탐지 ────────────────────────────────────────
+  # Generic — classical crypto detection in config files
 
   - id: generic-rsa-key-size-weak
     message: "RSA key size 1024/2048 detected — minimum 3072 recommended, or migrate to ML-KEM"

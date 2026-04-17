@@ -1,14 +1,14 @@
 {
-  "stage": "2",
-  "run_number": "307",
-  "timestamp": "2026-04-17T02:36:36Z",
+  "stage": "3",
+  "run_number": "308",
+  "timestamp": "2026-04-17T03:03:12Z",
   "commit": "b3ead14847d695d083042dc639e20f9e2f6640bc",
   "branch": "develop",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",
     "semgrep": "pass",
-    "tls_check": "pass"
+    "tls_check": "unknown"
   },
   "findings": 0,
   "cbom": {

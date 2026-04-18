@@ -12,6 +12,7 @@ RUN mkdir -p /certs && \
 # NOTE: sha256 pin(d02e7d6e...)이 oqs-ossl3:0.10.1로 생성한 Dilithium3 인증서를
 # OpenSSL SECLEVEL 정책으로 거부(ee key too small) → Stage 3 기동 실패.
 # 검증된 조합으로 되돌림.
+# TODO(#79): oqs-ossl3 호환 버전 확정 후 sha256 pin 복구
 FROM openquantumsafe/nginx:0.11.0
 
 USER root

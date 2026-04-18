@@ -29,8 +29,8 @@ tls_ok() {
 case "$STAGE" in
   1|ecc)
     echo "[verify_tls] Stage 1: classical 연결 시도 (X25519:P-256)..."
-    do_curl "X25519:P-256" "$TMPFILE_PQ"; PQ_EXIT=$?
-    if [ "$PQ_EXIT" -ne 0 ] || ! tls_ok "$TMPFILE_PQ"; then
+    do_curl "X25519:P-256" "$TMPFILE_PQ"; ECC_EXIT=$?
+    if [ "$ECC_EXIT" -ne 0 ] || ! tls_ok "$TMPFILE_PQ"; then
         echo "[verify_tls] FAIL — Stage 1 classical 핸드셰이크 실패"
         cat "$TMPFILE_PQ"; exit 1
     fi

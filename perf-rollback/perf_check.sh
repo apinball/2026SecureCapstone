@@ -55,13 +55,15 @@ FAIL_COUNT=0
 
 # Measure TLS handshake latency SAMPLE_COUNT times
 for i in $(seq 1 $SAMPLE_COUNT); do
-    RAW=$(curl -k -s -o /dev/null \
+    if RAW=$(curl -k -s -o /dev/null \
         --write-out "%{time_appconnect}" \
         --connect-timeout 5 \
         --curves "$CURVES" \
-        "$URL" 2>/dev/null) || true
-
-    CURL_EXIT=$?
+        "$URL" 2>/dev/null); then
+        CURL_EXIT=0
+    else
+        CURL_EXIT=$?
+    fi
     # time_appconnect returns 0.000000 on connection failure
     if [ "$CURL_EXIT" -ne 0 ] || [ "$RAW" = "0.000000" ] || [ "$RAW" = "0" ]; then
         echo "  [$i/$SAMPLE_COUNT] FAIL (connection error)"

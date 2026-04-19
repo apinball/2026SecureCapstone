@@ -124,13 +124,54 @@ git config user.name "PQC Rollback Bot"
 git config user.email "pqc-rollback-bot@github-actions.com"
 
 git add nginx/nginx.conf
+
+# Guard against empty commit when nginx.conf is already identical to the rollback target
+if git diff --cached --quiet; then
+    echo "[INFO] nginx.conf already matches rollback target — nothing to commit"
+
+    python3 -c "
+import json
+summary = {
+    'tool': 'rollback',
+    'result': 'skipped',
+    'stage_from': $STAGE,
+    'stage_to': $STAGE_TO,
+    'fail_reason': '''$FAIL_REASON''',
+    'commit_message': ''
+}
+with open('$ROLLBACK_SUMMARY', 'w') as f:
+    json.dump(summary, f, indent=2)
+"
+    exit 0
+fi
+
+# Create a dedicated rollback branch to avoid direct push to protected develop
+ROLLBACK_BRANCH="rollback/stage-${STAGE}-to-${STAGE_TO}-$(date +%Y%m%d%H%M%S)"
+git checkout -b "$ROLLBACK_BRANCH"
 git commit -m "$COMMIT_MSG"
-git push origin HEAD
+git push origin "$ROLLBACK_BRANCH"
 
 echo ""
-echo "Rollback committed and pushed."
+echo "Rollback branch pushed: $ROLLBACK_BRANCH"
 
-# Write rollback summary JSON
+# Open a PR targeting develop so branch protection rules are satisfied
+PR_TITLE="Auto-rollback: Stage ${STAGE} → Stage ${STAGE_TO} due to performance degradation"
+PR_BODY="## Auto-rollback triggered
+
+**Fail reason:** ${FAIL_REASON}
+
+This PR was automatically created by the perf-rollback pipeline step.
+Merging this PR will revert nginx.conf to the Stage ${STAGE_TO} configuration."
+
+PR_URL=$(gh pr create \
+    --base develop \
+    --head "$ROLLBACK_BRANCH" \
+    --title "$PR_TITLE" \
+    --body "$PR_BODY" 2>&1) || PR_URL="pr-create-failed"
+
+echo "PR created: $PR_URL"
+
+# Write rollback summary JSON including branch and PR URL
 python3 -c "
 import json
 summary = {
@@ -139,7 +180,9 @@ summary = {
     'stage_from': $STAGE,
     'stage_to': $STAGE_TO,
     'fail_reason': '''$FAIL_REASON''',
-    'commit_message': '''$COMMIT_MSG'''
+    'commit_message': '''$COMMIT_MSG''',
+    'branch_name': '$ROLLBACK_BRANCH',
+    'pr_url': '$PR_URL'
 }
 with open('$ROLLBACK_SUMMARY', 'w') as f:
     json.dump(summary, f, indent=2)

@@ -64,7 +64,7 @@ jobs:
       - name: 3. Semgrep 설치
         run: pip install --quiet semgrep || pip install --quiet --break-system-packages semgrep
 
-      - name: 4. PQC 자동 마이그레이션 (nginx 설정)
+      - name: 4. nginx 설정 자동 변경
         run: |
           echo "========================================"
           echo " PQC Auto-Migration — nginx TLS 설정 검사"
@@ -223,6 +223,83 @@ jobs:
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
+      - name: 10. 성능 검증 및 자동 롤백
+        id: perf_rollback
+        if: always()
+        run: |
+          mkdir -p perf-rollback/results
+
+          # Step 10-1: 성능 측정 (perf_check.sh)
+          echo "진행 중: TLS 핸드셰이크 성능 측정..."
+          BASELINE_ARG=""
+
+          # Step 10-2: Stage 1이 아닌 경우 baseline 아티팩트 다운로드
+          if [ "${{ env.STAGE }}" != "1" ]; then
+            ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+              --jq '.artifacts
+                | map(select(.expired == false))
+                | map(select(.name == "perf-baseline-stage1"))
+                | sort_by(.created_at)
+                | reverse
+                | .[0].id // empty' 2>/dev/null || true)
+
+            if [ -n "$ARTIFACT_ID" ]; then
+              echo "Stage 1 baseline 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
+              gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
+                > /tmp/perf_baseline.zip 2>/dev/null || true
+              unzip -p /tmp/perf_baseline.zip perf-check-summary.json \
+                > perf-rollback/results/baseline-stage1.json 2>/dev/null || true
+              if [ -f "perf-rollback/results/baseline-stage1.json" ]; then
+                BASELINE_ARG="perf-rollback/results/baseline-stage1.json"
+                echo "baseline 파일 로드 완료: $BASELINE_ARG"
+              fi
+            else
+              echo "Stage 1 baseline 아티팩트 없음 — 상대 임계치 스킵"
+            fi
+          fi
+
+          set +e
+          docker exec tls-tester perf_check.sh proxy-server 443 ${{ env.STAGE }} $BASELINE_ARG
+          PERF_EXIT=$?
+          set -e
+          if [ "$PERF_EXIT" -ne 0 ]; then
+            echo "::warning::perf_check.sh exited with status $PERF_EXIT. Continuing so artifacts and rollback evaluation can still run."
+          else
+            echo "perf_check.sh completed successfully."
+          fi
+
+          docker cp tls-tester:/usr/local/bin/results/perf-check-summary.json \
+            perf-rollback/results/perf-check-summary.json || true
+
+          # Stage 1이면 baseline 아티팩트로 저장
+          if [ "${{ env.STAGE }}" = "1" ]; then
+            echo "Stage 1 baseline 저장 예정 (아티팩트 업로드 step에서 처리)"
+          fi
+
+          # Step 10-3: 롤백 판정 (rollback.sh)
+          echo ""
+          echo "진행 중: 롤백 판정..."
+          bash perf-rollback/rollback.sh ${{ env.STAGE }} \
+            perf-rollback/results/perf-check-summary.json || true
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 성능 검증 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results-stage${{ env.STAGE }}-run${{ github.run_number }}
+          path: perf-rollback/results/
+
+      - name: Stage 1 baseline 아티팩트 저장
+        if: always() && env.STAGE == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline-stage1
+          path: perf-rollback/results/perf-check-summary.json
+          overwrite: true
+
       - name: CycloneDX CLI 설치
         if: always()
         run: |
@@ -231,7 +308,7 @@ jobs:
             -O /usr/local/bin/cyclonedx
           chmod +x /usr/local/bin/cyclonedx
 
-      - name: 10. CBOM 명세서 생성 및 리포팅
+      - name: 11. CBOM 명세서 생성 및 리포팅
         id: cbom_report
         if: always()
         run: |

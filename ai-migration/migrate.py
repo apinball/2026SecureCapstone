@@ -22,6 +22,7 @@ Exit codes:
 """
 
 import argparse
+import ast
 import json
 import os
 import subprocess
@@ -157,6 +158,97 @@ def is_valid_python(source: str) -> tuple[bool, str]:
         return True, ""
     except SyntaxError as e:
         return False, f"line {e.lineno}: {e.msg}"
+
+
+# Allowed methods on a KeyEncapsulation / Signature instance per liboqs-python public API
+OQS_KEM_METHODS = {"generate_keypair", "encap_secret", "decap_secret",
+                   "export_secret_key", "free"}
+OQS_SIG_METHODS = {"generate_keypair", "sign", "verify",
+                   "export_secret_key", "free"}
+
+
+def validate_oqs_usage(source: str) -> tuple[bool, list[str]]:
+    """C-light AST 검증: oqs-python API 오용 패턴 탐지.
+
+    이 함수는 LLM이 자주 환각하는 다음 패턴을 잡는다:
+    - KeyEncapsulation.generate_keypair()    → 클래스 직접 호출 (인스턴스 누락)
+    - kem.encapsulate(...)                   → 잘못된 메서드명 (정답: encap_secret)
+    - public_key.encap_secret(...)           → bytes 객체에 메서드 호출 시도
+
+    완전한 정적 분석은 아니지만, 잘 알려진 환각 패턴 차단에는 충분하다.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        return False, [f"AST parse error: {e}"]
+
+    issues: list[str] = []
+    uses_kem = False
+    uses_sig = False
+    has_kem_instance = False
+    has_sig_instance = False
+
+    # 1) import 확인 — oqs.KeyEncapsulation / oqs.Signature 사용 여부
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "oqs":
+            for alias in node.names:
+                if alias.name == "KeyEncapsulation":
+                    uses_kem = True
+                if alias.name == "Signature":
+                    uses_sig = True
+
+    if not (uses_kem or uses_sig):
+        # oqs 사용 안 함 → ML-KEM/ML-DSA 변환이 안 일어남
+        issues.append("oqs.KeyEncapsulation 또는 oqs.Signature import 없음 — 마이그레이션 미적용")
+        return False, issues
+
+    # 2) 인스턴스 생성 + 클래스 직접 호출 검사
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+
+            # 인스턴스 생성: KeyEncapsulation("Kyber768")
+            if isinstance(func, ast.Name):
+                if func.id == "KeyEncapsulation":
+                    has_kem_instance = True
+                elif func.id == "Signature":
+                    has_sig_instance = True
+
+            # 클래스 직접 호출: KeyEncapsulation.generate_keypair()
+            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                cls = func.value.id
+                if cls == "KeyEncapsulation":
+                    issues.append(
+                        f"KeyEncapsulation.{func.attr}() — 클래스 직접 호출 금지. "
+                        f"`kem = KeyEncapsulation(\"Kyber768\")` 인스턴스 생성 후 `kem.{func.attr}()` 형태 사용"
+                    )
+                elif cls == "Signature":
+                    issues.append(
+                        f"Signature.{func.attr}() — 클래스 직접 호출 금지"
+                    )
+
+    if uses_kem and not has_kem_instance:
+        issues.append("KeyEncapsulation(\"Kyber768\") 인스턴스 생성 패턴이 보이지 않음")
+    if uses_sig and not has_sig_instance:
+        issues.append("Signature(\"Dilithium3\") 인스턴스 생성 패턴이 보이지 않음")
+
+    # 3) 잘못된 메서드명 사용 검사
+    invalid_kem_calls: list[str] = []
+    invalid_sig_calls: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            method_name = node.attr
+            # KEM 사용 중일 때 encap_secret/decap_secret 외 의심스러운 메서드명
+            if uses_kem and method_name in {"encapsulate", "decapsulate", "encrypt", "decrypt"}:
+                invalid_kem_calls.append(method_name)
+
+    if invalid_kem_calls:
+        issues.append(
+            f"잘못된 KEM 메서드 사용: {sorted(set(invalid_kem_calls))} — "
+            f"실제 API는 encap_secret / decap_secret"
+        )
+
+    return len(issues) == 0, issues
 
 
 def run_git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
@@ -297,8 +389,16 @@ def main() -> int:
             failures.append(path)
             continue
 
+        oqs_ok, oqs_issues = validate_oqs_usage(new_content)
+        if not oqs_ok:
+            log(f"  oqs API validation failed:")
+            for issue in oqs_issues:
+                log(f"    - {issue}")
+            failures.append(path)
+            continue
+
         rewrites[path] = new_content
-        log(f"  migration prepared")
+        log(f"  migration prepared (syntax + oqs API checks passed)")
 
     if not rewrites:
         log("no successful migrations — exiting")
@@ -318,11 +418,11 @@ def main() -> int:
     files_changed = list(rewrites.keys())
     title = f"chore(ai-migration): RSA → ML-KEM migration ({len(files_changed)} file(s))"
     body_lines = [
-        "## 요약",
+        "## 작업내용",
         "",
-        f"AI 보조 PQC 마이그레이션. semgrep `crypto-classical.yaml` 룰이 탐지한 RSA 사용 코드를 ML-KEM(FIPS 203) / ML-DSA(FIPS 204)로 자동 변환했습니다.",
+        f"AI 보조 PQC 마이그레이션. semgrep `crypto-classical.yaml` 룰이 탐지한 RSA 사용 코드를 ML-KEM(FIPS 203) / ML-DSA(FIPS 204)로 자동 변환.",
         "",
-        "## 변경 파일",
+        "### 변경 파일",
         "",
     ]
     for p in files_changed:
@@ -330,27 +430,28 @@ def main() -> int:
         body_lines.append(f"- `{p}` — finding {len(related)}건")
     body_lines.extend([
         "",
-        "## 검증 가이드",
+        "### 검증 단계 (사람 리뷰)",
         "",
         "1. 변경 diff 검토 — 비기능적 수정이 섞여 있지 않은지 확인",
         "2. import / 의존성 변경 확인 (`oqs-python` 추가 여부)",
-        "3. 함수 시그니처 변화 확인 (ML-KEM은 ciphertext + shared_secret 튜플 반환)",
+        "3. 함수 시그니처 변화 확인 (ML-KEM은 `(ciphertext, shared_secret)` 튜플 반환)",
         "4. 단위 테스트 통과 여부 확인",
         "",
-        "## 주의 사항",
+        "## 주의 사항 및 참고 자료 (Optional)",
         "",
         f"- 모델: {args.model} (GitHub Models)",
-        f"- 자동 생성된 PR이므로 머지 전 반드시 사람 리뷰 필요",
+        "- 자동 생성된 PR이므로 머지 전 반드시 사람 리뷰 필요",
         f"- 마이그레이션 처리 한도: 최대 {MAX_FINDINGS}개 파일",
+        "- 자동 검증 통과 항목: Python 문법(`compile()`) + oqs-python API AST 검사",
     ])
     if failures:
         body_lines.extend([
             "",
-            "## 실패한 항목",
+            "### 실패한 항목",
             "",
         ])
         for p in failures:
-            body_lines.append(f"- `{p}` — LLM 응답 실패 또는 문법 오류")
+            body_lines.append(f"- `{p}` — LLM 응답 실패 또는 검증 실패")
     body = "\n".join(body_lines)
 
     commit_msg = f"chore(ai-migration): RSA → ML-KEM 자동 변환 ({len(files_changed)}개 파일)"

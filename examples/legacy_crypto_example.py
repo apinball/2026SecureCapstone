@@ -6,38 +6,25 @@
 이 파일을 ML-KEM(FIPS 203) 기반으로 자동 변환하는 PR을 생성합니다.
 """
 
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from oqs import KeyEncapsulation
 
+
+# PQC migration: replaced RSA with ML-KEM
+kem = KeyEncapsulation("Kyber768")
 
 def generate_keypair():
-    """Generate an RSA-2048 keypair for key transport."""
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-    )
-    return private_key
+    """Generate a keypair for key transport using ML-KEM."""
+    public_key = kem.generate_keypair()        # returns: bytes (public key)
+    return public_key
 
 
 def encrypt_session_key(public_key, session_key: bytes) -> bytes:
-    """Encrypt a session key using RSA-OAEP."""
-    return public_key.encrypt(
-        session_key,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None,
-        ),
-    )
+    """Encapsulate a session key using ML-KEM. Returns shared secret."""
+    ciphertext, shared_secret = kem.encap_secret(public_key)
+    return ciphertext  # The shared secret can be used as the session key.
 
 
-def decrypt_session_key(private_key, ciphertext: bytes) -> bytes:
-    """Decrypt a session key using RSA-OAEP."""
-    return private_key.decrypt(
-        ciphertext,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None,
-        ),
-    )
+def decrypt_session_key(ciphertext: bytes) -> bytes:
+    """Decapsulate a session key using ML-KEM."""
+    shared_secret = kem.decap_secret(ciphertext)
+    return shared_secret  # The shared secret is returned.

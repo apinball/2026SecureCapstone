@@ -127,12 +127,14 @@ jobs:
           mkdir -p artifacts
 
           # 코드 내 고전 암호 패턴 탐지 (Python, Java 등)
+          # examples/ 는 ai-migration 데모용 의도된 RSA 코드이므로 제외
+          # (ai-migration.yml 워크플로우에서는 별도 스캔)
           semgrep --config scanner/rules/crypto-classical.yaml \
             --json \
             --output artifacts/crypto-findings.json \
             --quiet \
             --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
-            --exclude "pqc-webserver/*" --exclude "nginx/*" \
+            --exclude "pqc-webserver/*" --exclude "nginx/*" --exclude "examples/*" \
             . || true
 
           # 탐지 결과 요약 출력 (차단은 Step 6 이후에 종합 판정)

@@ -1,0 +1,79 @@
+name: AI-Assisted PQC Migration
+
+# 수동 실행 전용. 메인 파이프라인과 분리하여 비용/노이즈 격리.
+on:
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: '생성될 PR의 base 브랜치'
+        required: true
+        default: 'develop'
+        type: string
+      model:
+        description: 'GitHub Models 모델명'
+        required: false
+        default: 'gpt-4o-mini'
+        type: string
+      dry_run:
+        description: '드라이런 (LLM 호출하고 파일 수정만, git/PR 안 함)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  ai-migration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Semgrep
+        run: pip install --quiet semgrep || pip install --quiet --break-system-packages semgrep
+
+      - name: Detect legacy crypto findings
+        run: |
+          mkdir -p artifacts
+          semgrep --config scanner/rules/crypto-classical.yaml \
+            --json \
+            --output artifacts/crypto-findings.json \
+            --quiet \
+            --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" \
+            --exclude "pqc-webserver/*" --exclude "nginx/*" \
+            . || true
+          COUNT=$(jq '.results | length' artifacts/crypto-findings.json 2>/dev/null || echo 0)
+          echo "탐지된 finding: ${COUNT}건"
+
+      - name: Run AI migration
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DRYRUN=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRYRUN="--dry-run"
+          fi
+          python ai-migration/migrate.py \
+            --findings artifacts/crypto-findings.json \
+            --base "${{ github.event.inputs.base_branch }}" \
+            --model "${{ github.event.inputs.model }}" \
+            $DRYRUN
+
+      - name: Upload findings as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-migration-findings-run${{ github.run_number }}
+          path: artifacts/crypto-findings.json

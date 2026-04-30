@@ -104,6 +104,19 @@ TLS_GROUP_ALIASES = {
     "secp521r1": "ECDH-P-521",
 }
 
+# RFC 8446 §B.4 — TLS 1.3 mandatory cipher suites.
+# 서버가 ssl_ciphers 미지정 시 OpenSSL 이 자동 협상하는 표준 5종.
+# nginx 권장 사항이 TLS 1.3 cipher 미지정이므로(자동 협상), 운영자가
+# 명시하지 않은 환경의 CBOM 에는 이 5종이 자산으로 자동 등록되어야 한다.
+# 순서: OpenSSL 기본 우선순위와 일치 (AES-256-GCM-SHA384 가 가장 먼저).
+TLS13_RFC8446_CIPHER_SUITES = [
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_AES_128_GCM_SHA256",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_CCM_SHA256",
+    "TLS_AES_128_CCM_8_SHA256",
+]
+
 RELATED_ASSET_TYPE_MAP = {
     "algorithm": "algorithm",
     "public-key": "publicKey",
@@ -1137,13 +1150,30 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
         if cd:
             add_dependency(deps, cert_ref, cd)
 
+    # TLS 1.3 표준 cipher 자동 주입:
+    # nginx 권장 설정상 TLS 1.3 cipher suite 는 명시하지 않고 OpenSSL 이
+    # 자동 협상한다 (RFC 8446 §B.4 가 5종을 MUST 로 지정). 그래서 nginx
+    # 설정 파싱 결과(cfg_ciphers)와 핸드셰이크 결과(neg_cipher) 모두
+    # 비어있는 경우, 서버가 실제로 협상 가능한 5종 표준 cipher 를 BOM 에
+    # 자산으로 자동 등록한다. CBOM 의 본질은 "이 시스템의 자산 카탈로그"
+    # 이므로 실제로 사용 가능한 자산은 빠짐없이 기록되어야 한다.
+    cipher_source_override = None
+    if not cfg_ciphers and not neg_cipher:
+        if any("1.3" in p for p in (cfg_protos or [])):
+            cfg_ciphers = list(TLS13_RFC8446_CIPHER_SUITES)
+            cipher_source_override = "rfc8446-default"
+
     for suite in dedupe_keep_order(([neg_cipher] if neg_cipher else []) + cfg_ciphers):
         alg_refs = []
         for alg_name in extract_cipher_suite_algorithms(suite):
+            extra_props = [make_property("securecapstone:cipher_suite", suite)]
+            if cipher_source_override:
+                extra_props.append(
+                    make_property("securecapstone:source", cipher_source_override))
             alg_ref, alg_comp = build_algorithm_component(
                 alg_name,
                 "cipher-suite",
-                [make_property("securecapstone:cipher_suite", suite)],
+                extra_props,
                 spec_version=spec_version,
             )
             register_component(alg_ref, alg_comp, root=True, related_type="algorithm")

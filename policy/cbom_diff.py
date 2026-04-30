@@ -26,6 +26,17 @@ import sys
 from datetime import datetime, timezone
 
 
+# Stage 정책에 따라 클라이언트가 강제할 TLS 1.3 group.
+# openssl s_client 는 -groups 옵션 없이 호출되면 OQS provider 가 활성
+# 상태여도 클래식 group 을 우선시한다. Stage 시연 시 의도한 group 으로
+# 협상되도록 명시적으로 강제할 필요가 있다.
+# Stage 1 은 클래식이라 매핑하지 않음 (.get 으로 None 반환되어 기본 동작).
+STAGE_TLS_GROUPS = {
+    "2": "X25519MLKEM768",     # Stage 2: 하이브리드 PQC
+    "3": "mlkem1024",          # Stage 3: 순수 PQC
+}
+
+
 def load_json(path):
     try:
         with open(path) as f:
@@ -147,10 +158,14 @@ def compare(current_bom, previous_bom):
 ##############################################################################
 
 
-def _build_handshake_cmd(host: str, port: int, exec_container: str | None) -> list[str] | None:
+def _build_handshake_cmd(host: str, port: int, exec_container: str | None,
+                          tls_groups: str | None = None) -> list[str] | None:
     """openssl s_client 명령을 구성한다. exec_container 가 주어지면
     `docker exec <container> openssl ...` 형태로 컨테이너 내부에서 실행하도록
     구성한다 (러너 호스트에서 내부 DNS 해석 불가 + OQS provider 부재 대응).
+
+    tls_groups 가 주어지면 -groups <groups> 옵션을 추가하여 협상 group 을
+    강제한다 (Stage 정책 시연용).
 
     호출 가능한 바이너리가 없으면 None 을 반환한다.
     """
@@ -162,17 +177,22 @@ def _build_handshake_cmd(host: str, port: int, exec_container: str | None) -> li
             return None
         # 컨테이너 내부 openssl 사용 (PATH 의존). openquantumsafe/curl 베이스
         # 이미지는 OQS provider 가 번들된 openssl 을 기본 PATH 에 둔다.
-        return [docker, "exec", exec_container,
-                "openssl", "s_client", "-connect", f"{host}:{port}",
-                "-brief", "-no_ign_eof"]
+        cmd = [docker, "exec", exec_container,
+               "openssl", "s_client", "-connect", f"{host}:{port}",
+               "-brief", "-no_ign_eof"]
+    else:
+        openssl = shutil.which("openssl")
+        if openssl is None:
+            print("[WARN] openssl이 설치되어 있지 않아 TLS 검증을 건너뜁니다.",
+                  file=sys.stderr)
+            return None
+        cmd = [openssl, "s_client", "-connect", f"{host}:{port}",
+               "-brief", "-no_ign_eof"]
 
-    openssl = shutil.which("openssl")
-    if openssl is None:
-        print("[WARN] openssl이 설치되어 있지 않아 TLS 검증을 건너뜁니다.",
-              file=sys.stderr)
-        return None
-    return [openssl, "s_client", "-connect", f"{host}:{port}",
-            "-brief", "-no_ign_eof"]
+    if tls_groups:
+        cmd.extend(["-groups", tls_groups])
+
+    return cmd
 
 
 def _parse_handshake_output(output: str) -> dict:
@@ -205,7 +225,8 @@ def _parse_handshake_output(output: str) -> dict:
 
 
 def _run_tls_handshake(host: str, port: int,
-                      exec_container: str | None = None) -> dict | None:
+                      exec_container: str | None = None,
+                      tls_groups: str | None = None) -> dict | None:
     """openssl s_client 로 TLS 핸드셰이크를 수행하고 협상 결과를 반환한다.
 
     openssl s_client 출력은 curl -v 보다 구조적이고 버전 간 포맷이 안정적이다.
@@ -216,8 +237,9 @@ def _run_tls_handshake(host: str, port: int,
         exec_container: 지정 시 `docker exec <container> openssl ...` 로 실행.
             러너 호스트에서 docker-compose 내부 서비스명 DNS 해석이 안 되거나
             OQS provider 가 없는 경우 우회 수단으로 사용.
+        tls_groups: 지정 시 `-groups <groups>` 로 협상 group 을 강제.
     """
-    cmd = _build_handshake_cmd(host, port, exec_container)
+    cmd = _build_handshake_cmd(host, port, exec_container, tls_groups=tls_groups)
     if cmd is None:
         return None
 
@@ -314,24 +336,37 @@ def _match_keyword_in_cbom(keyword: str, cbom_normalized: set[str]) -> bool:
 
 
 def verify_tls_against_cbom(bom: dict, host: str, port: int,
-                             exec_container: str | None = None) -> dict:
+                             exec_container: str | None = None,
+                             tls_stage: str | None = None) -> dict:
     """실제 TLS 핸드셰이크 결과와 CBOM 기재 알고리즘을 교차 검증한다.
 
     exec_container 가 지정되면 호스트가 아닌 해당 docker 컨테이너 내부에서
     핸드셰이크를 수행한다 (CI 러너에서 docker-compose 내부 DNS / OQS provider
     부재 문제 우회용).
+
+    tls_stage 가 지정되면 STAGE_TLS_GROUPS 매핑에 따라 클라이언트가 협상할
+    group 을 강제한다. Stage 2 → X25519MLKEM768, Stage 3 → mlkem1024.
+    Stage 1 또는 매핑에 없는 값은 group 강제 없이 OpenSSL 기본 동작을 따른다.
     """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     result: dict = {"verified_at": now, "host": host, "port": port}
     if exec_container:
         result["exec_container"] = exec_container
 
-    handshake = _run_tls_handshake(host, port, exec_container=exec_container)
+    tls_groups = STAGE_TLS_GROUPS.get(str(tls_stage)) if tls_stage else None
+    if tls_stage:
+        result["stage"] = str(tls_stage)
+    if tls_groups:
+        result["enforced_groups"] = tls_groups
+
+    handshake = _run_tls_handshake(host, port, exec_container=exec_container,
+                                    tls_groups=tls_groups)
     if handshake is None:
         result["status"] = "SKIPPED"
         via = f" (via {exec_container})" if exec_container else ""
-        result["reason"] = (f"TLS 핸드셰이크 실패 — {host}:{port}{via} 에 "
-                            f"연결할 수 없음")
+        groups_note = f" [groups={tls_groups}]" if tls_groups else ""
+        result["reason"] = (f"TLS 핸드셰이크 실패 — {host}:{port}{via}"
+                            f"{groups_note} 에 연결할 수 없음")
         return result
 
     result["negotiated"] = handshake
@@ -436,6 +471,14 @@ def main():
                              "docker-compose 내부 서비스명 DNS 해석 불가 + "
                              "OQS provider 부재 문제 우회용 "
                              "(예: --tls-exec-container tls-tester).")
+    parser.add_argument("--tls-stage", default=None,
+                        choices=["1", "2", "3"],
+                        help="지정 시 Stage 정책에 맞춰 openssl s_client 의 "
+                             "-groups 옵션을 자동 부여한다. "
+                             "Stage 2: X25519MLKEM768, Stage 3: mlkem1024 강제. "
+                             "지정 없으면 OpenSSL 기본 group 순서를 사용 "
+                             "(클래식 우선이라 PQC 환경에서도 클래식으로 "
+                             "fallback 될 수 있음).")
     parser.add_argument("--fail-on-mismatch", action="store_true",
                         help="TLS ↔ CBOM 불일치(MISMATCH) 시 exit 1")
     parser.add_argument("--fail-on-skip", action="store_true",
@@ -460,6 +503,7 @@ def main():
         tls_result = verify_tls_against_cbom(
             current, args.tls_host, args.tls_port,
             exec_container=args.tls_exec_container,
+            tls_stage=args.tls_stage,
         )
         set_property(current, "securecapstone:tls_verification", tls_result)
 

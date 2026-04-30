@@ -49,6 +49,7 @@ GENERATOR_VERSION = "2.2.2"
 
 CYCLONEDX_SCHEMA_MAP = {
     "1.6": "https://cyclonedx.org/schema/bom-1.6.schema.json",
+    "1.7": "https://cyclonedx.org/schema/bom-1.7.schema.json",
 }
 
 STAGE_CONFIG_MAP = {
@@ -72,7 +73,7 @@ DEFAULT_TESTER = os.getenv("TESTER_CONTAINER", "tls-tester")
 DEFAULT_SERVER = os.getenv("SERVER_CONTAINER", "pqc-proxy")
 DEFAULT_CERT_PATH = os.getenv("SERVER_CERT_PATH", "/etc/nginx/certs/server.crt")
 DEFAULT_VERIFY_SCRIPT = os.getenv("VERIFY_SCRIPT", "tls_check.sh")
-DEFAULT_SPEC_VERSION = os.getenv("CYCLONEDX_SPEC_VERSION", "1.6")
+DEFAULT_SPEC_VERSION = os.getenv("CYCLONEDX_SPEC_VERSION", "1.7")
 DEFAULT_REDACT = os.getenv("CBOM_REDACT", "true").strip().lower() not in {
     "0", "false", "no", "off",
 }
@@ -102,6 +103,19 @@ TLS_GROUP_ALIASES = {
     "secp384r1": "ECDH-P-384",
     "secp521r1": "ECDH-P-521",
 }
+
+# RFC 8446 §B.4 — TLS 1.3 mandatory cipher suites.
+# 서버가 ssl_ciphers 미지정 시 OpenSSL 이 자동 협상하는 표준 5종.
+# nginx 권장 사항이 TLS 1.3 cipher 미지정이므로(자동 협상), 운영자가
+# 명시하지 않은 환경의 CBOM 에는 이 5종이 자산으로 자동 등록되어야 한다.
+# 순서: OpenSSL 기본 우선순위와 일치 (AES-256-GCM-SHA384 가 가장 먼저).
+TLS13_RFC8446_CIPHER_SUITES = [
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_AES_128_GCM_SHA256",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_CCM_SHA256",
+    "TLS_AES_128_CCM_8_SHA256",
+]
 
 RELATED_ASSET_TYPE_MAP = {
     "algorithm": "algorithm",
@@ -465,12 +479,25 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     if "aes" in lower:
         props.setdefault("_algorithmFamily", "AES")
     if "chacha20" in lower:
-        if "poly1305" in lower:
-            props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
-        else:
-            props.setdefault("_algorithmFamily", "ChaCha20")
-    if SHA_ALGO_PATTERN.search(lower):
-        props.setdefault("_algorithmFamily", "SHA")
+        # CycloneDX 1.7 algorithmFamiliesEnum 에 ChaCha20-Poly1305 는 없음.
+        # ChaCha20 패밀리 안에 ChaCha20-Poly1305 (ae) 변형이 정의되어 있다.
+        # 따라서 family 는 항상 ChaCha20 으로 박고, 변형 정보는 컴포넌트
+        # 이름(예: "ChaCha20-Poly1305")에 자연스럽게 반영된다.
+        props.setdefault("_algorithmFamily", "ChaCha20")
+    # CycloneDX 1.7 algorithmFamiliesEnum: SHA-1 / SHA-2 / SHA-3 분리.
+    # SHA family 단일 값은 spec 위반. 가장 구체적인 SHA-3 부터 차례로 매칭.
+    # - SHA-3 계열: SHA3-{N}, SHAKE/cSHAKE, KMAC, TupleHash, ParallelHash
+    #   (SHA384/512 등에서 잘못 매칭되지 않도록 sha 직후 3 다음에 숫자가
+    #   오면 안 됨 — 부정 lookahead 사용)
+    # - SHA-1: sha 직후 1 다음에 숫자가 없어야 (SHA1, sha-1 등)
+    # - 그 외 SHA-* : SHA-224/256/384/512 → SHA-2
+    if (re.match(r"sha[-_ ]?3(?!\d)", lower) or
+            re.search(r"shake|cshake|kmac|tuplehash|parallelhash", lower)):
+        props.setdefault("_algorithmFamily", "SHA-3")
+    elif re.match(r"sha[-_ ]?1(?!\d)", lower):
+        props.setdefault("_algorithmFamily", "SHA-1")
+    elif SHA_ALGO_PATTERN.search(lower):
+        props.setdefault("_algorithmFamily", "SHA-2")
 
     if context == "certificate-signature":
         props.setdefault("cryptoFunctions", ["sign", "verify"])
@@ -489,13 +516,20 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     return prune_none(props)
 
 
-def build_algorithm_component(name, context="", extra_properties=None):
+def build_algorithm_component(name, context="", extra_properties=None,
+                              spec_version=DEFAULT_SPEC_VERSION):
     ref = f"crypto/algorithm/{slugify(name)}"
     alg_props = infer_algorithm_properties(name, context)
-    # algorithmFamily, curve are not in CycloneDX 1.6 algorithmProperties schema;
-    # extract and store as custom properties instead
     alg_family = alg_props.pop("_algorithmFamily", None)
     alg_curve = alg_props.pop("_curve", None)
+
+    # CycloneDX 1.7부터 algorithmFamily는 algorithmProperties 스키마의 정식 필드.
+    # 1.7 출력일 때는 native 필드로 박고, 동시에 기존 다운스트림 호환을 위해
+    # 커스텀 프로퍼티(securecapstone:algorithmFamily)도 유지한다.
+    # curve는 1.7에서 deprecated 됐으므로 양쪽 spec 모두 커스텀 프로퍼티만 사용.
+    if alg_family and spec_version >= "1.7":
+        alg_props["algorithmFamily"] = alg_family
+
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {"assetType": "algorithm",
@@ -1071,6 +1105,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
                     make_property("securecapstone:source", source),
                     make_property("securecapstone:key_exchange:group", name),
                 ],
+                spec_version=spec_version,
             )
             register_component(child_ref, child_comp, root=True, related_type="algorithm")
             child_refs.append(child_ref)
@@ -1087,6 +1122,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
                     make_property("securecapstone:key_exchange:group", name),
                     make_property("securecapstone:key_exchange:decomposed", child_unique),
                 ],
+                spec_version=spec_version,
             )
             register_component(group_ref, group_comp, root=True, related_type="algorithm")
             if child_refs:
@@ -1094,12 +1130,18 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
 
     cert_sig_ref = None
     if ca.get("cert_signature_algorithm"):
-        cert_sig_ref, c = build_algorithm_component(ca["cert_signature_algorithm"], "certificate-signature")
+        cert_sig_ref, c = build_algorithm_component(
+            ca["cert_signature_algorithm"], "certificate-signature",
+            spec_version=spec_version,
+        )
         register_component(cert_sig_ref, c, root=True, related_type="algorithm")
 
     pk_alg_ref = None
     if ca.get("cert_public_key_algorithm"):
-        pk_alg_ref, c = build_algorithm_component(ca["cert_public_key_algorithm"], "public-key")
+        pk_alg_ref, c = build_algorithm_component(
+            ca["cert_public_key_algorithm"], "public-key",
+            spec_version=spec_version,
+        )
         register_component(pk_alg_ref, c, root=True, related_type="algorithm")
 
     pk_ref, pk_c = build_public_key_component(cert_f, pk_alg_ref)
@@ -1121,13 +1163,31 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
         if cd:
             add_dependency(deps, cert_ref, cd)
 
+    # TLS 1.3 표준 cipher 자동 주입:
+    # nginx 권장 설정상 TLS 1.3 cipher suite 는 명시하지 않고 OpenSSL 이
+    # 자동 협상한다 (RFC 8446 §B.4 가 5종을 MUST 로 지정). 그래서 nginx
+    # 설정 파싱 결과(cfg_ciphers)와 핸드셰이크 결과(neg_cipher) 모두
+    # 비어있는 경우, 서버가 실제로 협상 가능한 5종 표준 cipher 를 BOM 에
+    # 자산으로 자동 등록한다. CBOM 의 본질은 "이 시스템의 자산 카탈로그"
+    # 이므로 실제로 사용 가능한 자산은 빠짐없이 기록되어야 한다.
+    cipher_source_override = None
+    if not cfg_ciphers and not neg_cipher:
+        if any("1.3" in p for p in (cfg_protos or [])):
+            cfg_ciphers = list(TLS13_RFC8446_CIPHER_SUITES)
+            cipher_source_override = "rfc8446-default"
+
     for suite in dedupe_keep_order(([neg_cipher] if neg_cipher else []) + cfg_ciphers):
         alg_refs = []
         for alg_name in extract_cipher_suite_algorithms(suite):
+            extra_props = [make_property("securecapstone:cipher_suite", suite)]
+            if cipher_source_override:
+                extra_props.append(
+                    make_property("securecapstone:source", cipher_source_override))
             alg_ref, alg_comp = build_algorithm_component(
                 alg_name,
                 "cipher-suite",
-                [make_property("securecapstone:cipher_suite", suite)],
+                extra_props,
+                spec_version=spec_version,
             )
             register_component(alg_ref, alg_comp, root=True, related_type="algorithm")
             alg_refs.append(alg_ref)
@@ -1205,7 +1265,7 @@ def generate_cbom(
     return convert_snapshot_to_cyclonedx(snapshot, spec_version=spec_version, redact=redact)
 
 
-def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
+def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.7") -> bool:
     """CycloneDX CLI를 사용하여 CBOM JSON의 스키마 준수 여부를 검증한다.
 
     Returns:

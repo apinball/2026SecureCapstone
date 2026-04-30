@@ -303,7 +303,8 @@ jobs:
       - name: CycloneDX CLI 설치
         if: always()
         run: |
-          CDXVER="v0.27.1"
+          # CycloneDX spec v1.7 validation은 cyclonedx-cli v0.30.0부터 지원됨 (PR #479).
+          CDXVER="v0.30.0"
           wget -q "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CDXVER}/cyclonedx-linux-x64" \
             -O /usr/local/bin/cyclonedx
           chmod +x /usr/local/bin/cyclonedx
@@ -407,22 +408,34 @@ jobs:
             echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
           fi
 
+          # TLS 핸드셰이크는 tls-tester 컨테이너 내부에서 수행한다.
+          # - 러너 호스트는 docker-compose 내부 서비스명(proxy-server)을 DNS 해석할 수 없음
+          # - 러너 기본 openssl 에는 OQS provider 가 없어 Stage 2/3 PQC 핸드셰이크 불가
+          # tls-tester 는 openquantumsafe/curl 기반이라 OQS 번들 openssl 보유 + 같은 네트워크.
+          # --tls-stage 는 Stage 정책에 맞춰 -groups 옵션을 자동 부여한다
+          # (Stage 2: X25519MLKEM768, Stage 3: mlkem1024).
           python policy/cbom_diff.py \
             --current artifacts/cbom_stage${{ env.STAGE }}.json \
             --previous "$PREV_CBOM" \
-            --out artifacts/cbom_stage${{ env.STAGE }}.json
+            --out artifacts/cbom_stage${{ env.STAGE }}.json \
+            --verify-tls \
+            --tls-host proxy-server \
+            --tls-port 443 \
+            --tls-exec-container tls-tester \
+            --tls-stage ${{ env.STAGE }} \
+            --fail-on-mismatch
 
-          # ── CycloneDX 1.6 schema validation (최종 CBOM 검증) ──
-          echo "CycloneDX 1.6 schema validation 시작..."
+          # ── CycloneDX 1.7 schema validation (최종 CBOM 검증) ──
+          echo "CycloneDX 1.7 schema validation 시작..."
           if ! cyclonedx validate \
             --input-file artifacts/cbom_stage${{ env.STAGE }}.json \
             --input-format json \
-            --input-version v1_6 --fail-on-errors; then
-            echo "[FAIL] CycloneDX 1.6 schema validation 실패 — 위 출력 참고"
+            --input-version v1_7 --fail-on-errors; then
+            echo "[FAIL] CycloneDX 1.7 schema validation 실패 — 위 출력 참고"
             echo "  대상 파일: artifacts/cbom_stage${{ env.STAGE }}.json"
             exit 1
           fi
-          echo "[PASS] CycloneDX 1.6 schema validation 통과"
+          echo "[PASS] CycloneDX 1.7 schema validation 통과"
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

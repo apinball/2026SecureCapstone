@@ -479,12 +479,25 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     if "aes" in lower:
         props.setdefault("_algorithmFamily", "AES")
     if "chacha20" in lower:
-        if "poly1305" in lower:
-            props.setdefault("_algorithmFamily", "ChaCha20-Poly1305")
-        else:
-            props.setdefault("_algorithmFamily", "ChaCha20")
-    if SHA_ALGO_PATTERN.search(lower):
-        props.setdefault("_algorithmFamily", "SHA")
+        # CycloneDX 1.7 algorithmFamiliesEnum 에 ChaCha20-Poly1305 는 없음.
+        # ChaCha20 패밀리 안에 ChaCha20-Poly1305 (ae) 변형이 정의되어 있다.
+        # 따라서 family 는 항상 ChaCha20 으로 박고, 변형 정보는 컴포넌트
+        # 이름(예: "ChaCha20-Poly1305")에 자연스럽게 반영된다.
+        props.setdefault("_algorithmFamily", "ChaCha20")
+    # CycloneDX 1.7 algorithmFamiliesEnum: SHA-1 / SHA-2 / SHA-3 분리.
+    # SHA family 단일 값은 spec 위반. 가장 구체적인 SHA-3 부터 차례로 매칭.
+    # - SHA-3 계열: SHA3-{N}, SHAKE/cSHAKE, KMAC, TupleHash, ParallelHash
+    #   (SHA384/512 등에서 잘못 매칭되지 않도록 sha 직후 3 다음에 숫자가
+    #   오면 안 됨 — 부정 lookahead 사용)
+    # - SHA-1: sha 직후 1 다음에 숫자가 없어야 (SHA1, sha-1 등)
+    # - 그 외 SHA-* : SHA-224/256/384/512 → SHA-2
+    if (re.match(r"sha[-_ ]?3(?!\d)", lower) or
+            re.search(r"shake|cshake|kmac|tuplehash|parallelhash", lower)):
+        props.setdefault("_algorithmFamily", "SHA-3")
+    elif re.match(r"sha[-_ ]?1(?!\d)", lower):
+        props.setdefault("_algorithmFamily", "SHA-1")
+    elif SHA_ALGO_PATTERN.search(lower):
+        props.setdefault("_algorithmFamily", "SHA-2")
 
     if context == "certificate-signature":
         props.setdefault("cryptoFunctions", ["sign", "verify"])

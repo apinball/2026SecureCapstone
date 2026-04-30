@@ -252,11 +252,14 @@ def validate_oqs_usage(source: str) -> tuple[bool, list[str]]:
 
 
 def run_git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    # encoding/errors 명시 — Windows cp949 환경에서 stdout 디코딩 에러 회피
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -298,10 +301,11 @@ def commit_and_push(branch: str, files: list[str], message: str) -> bool:
 
 
 def open_pr(branch: str, base: str, title: str, body: str) -> bool:
+    # encoding="utf-8" — gh stdout이 한글 포함 시 cp949 디코딩 에러 회피
     r = subprocess.run(
         ["gh", "pr", "create", "--base", base, "--head", branch,
          "--title", title, "--body", body, "--label", "ai-generated"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     if r.returncode != 0:
         # Fallback: drop label flag (label may not exist)
@@ -309,7 +313,7 @@ def open_pr(branch: str, base: str, title: str, body: str) -> bool:
         r = subprocess.run(
             ["gh", "pr", "create", "--base", base, "--head", branch,
              "--title", title, "--body", body],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
         )
     if r.returncode != 0:
         log(f"gh pr create failed: {r.stderr.strip()}")

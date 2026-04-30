@@ -43,11 +43,28 @@ is_valid = sig.verify(message, signature_bytes, public_key)
 
 1. RSA encrypt/decrypt → ML-KEM `encap_secret` / `decap_secret`.
 2. RSA sign/verify → ML-DSA `sign` / `verify`.
-3. Preserve module docstring and overall structure where possible. Function signatures MAY change because ML-KEM returns `(ciphertext, shared_secret)` tuple instead of single ciphertext. Document the change in the docstring.
+3. Preserve module docstring, **public function names, and parameter counts** where possible. Return values WILL change because ML-KEM returns shared_secret (and ciphertext on encap) — document this in the docstring.
 4. Add a single-line comment `# PQC migration: replaced RSA with ML-KEM` (or `ML-DSA`) immediately above the first migrated function.
 5. Remove now-unused `cryptography.hazmat.*` imports if all RSA usages are replaced.
 6. Do NOT add unrelated changes (formatting, type hints, refactoring).
-7. If the original code separated key generation, encryption, decryption into independent functions that lost reference to the original RSA object, you may need to introduce a shared `kem` instance (module-level or returned from `generate_keypair`). Pick the simplest restructuring that preserves the public API where possible.
+
+# API compatibility constraints (CRITICAL — minimize breaking changes)
+
+These rules limit caller-side breakage when migrating:
+
+a. **No global / module-level `kem` or `sig` instance.** Multi-threaded callers and multi-keypair use cases break with a shared instance because OQS objects hold key state internally. Always create the instance inside the function that needs it, OR return it from `generate_keypair`.
+
+b. **`generate_keypair` should return BOTH the keypair object AND the public key** as a tuple, e.g. `return kem, public_key`. The caller needs the kem object for later decapsulation (it holds the secret key) and the public key for sending to the encapsulating party. If the original RSA code returned a single private_key object that bundled both, mirror that by returning the kem object first.
+
+c. **Pass the kem object explicitly to functions that need the secret key**, e.g. decapsulate. Do NOT rely on a captured/global kem.
+
+d. **Encapsulation functions should return the `shared_secret`** (or both `ciphertext` and `shared_secret`). Returning only the ciphertext while discarding shared_secret is a bug — the encapsulating side cannot derive the session key without it.
+
+e. **If the original function had a `private_key` (or similar) parameter**, keep that parameter in the migrated signature even if its semantic role changes (it now holds the kem object). Removing parameters silently breaks every caller.
+
+f. **Document any unavoidable behavior change** in the function docstring (e.g. "Returns shared_secret instead of decrypted bytes" or "Pass the kem object returned by generate_keypair as the first argument").
+
+These rules accept that RSA and ML-KEM have different paradigms (KEM produces a shared secret; it doesn't decrypt arbitrary data). The goal is to keep the migration **mechanical-looking from the caller's perspective**: same function names, same parameter counts, semantically clear return values.
 
 # Output format
 

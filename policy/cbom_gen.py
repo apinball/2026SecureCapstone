@@ -49,6 +49,7 @@ GENERATOR_VERSION = "2.2.2"
 
 CYCLONEDX_SCHEMA_MAP = {
     "1.6": "https://cyclonedx.org/schema/bom-1.6.schema.json",
+    "1.7": "https://cyclonedx.org/schema/bom-1.7.schema.json",
 }
 
 STAGE_CONFIG_MAP = {
@@ -72,7 +73,7 @@ DEFAULT_TESTER = os.getenv("TESTER_CONTAINER", "tls-tester")
 DEFAULT_SERVER = os.getenv("SERVER_CONTAINER", "pqc-proxy")
 DEFAULT_CERT_PATH = os.getenv("SERVER_CERT_PATH", "/etc/nginx/certs/server.crt")
 DEFAULT_VERIFY_SCRIPT = os.getenv("VERIFY_SCRIPT", "tls_check.sh")
-DEFAULT_SPEC_VERSION = os.getenv("CYCLONEDX_SPEC_VERSION", "1.6")
+DEFAULT_SPEC_VERSION = os.getenv("CYCLONEDX_SPEC_VERSION", "1.7")
 DEFAULT_REDACT = os.getenv("CBOM_REDACT", "true").strip().lower() not in {
     "0", "false", "no", "off",
 }
@@ -489,13 +490,20 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     return prune_none(props)
 
 
-def build_algorithm_component(name, context="", extra_properties=None):
+def build_algorithm_component(name, context="", extra_properties=None,
+                              spec_version=DEFAULT_SPEC_VERSION):
     ref = f"crypto/algorithm/{slugify(name)}"
     alg_props = infer_algorithm_properties(name, context)
-    # algorithmFamily, curve are not in CycloneDX 1.6 algorithmProperties schema;
-    # extract and store as custom properties instead
     alg_family = alg_props.pop("_algorithmFamily", None)
     alg_curve = alg_props.pop("_curve", None)
+
+    # CycloneDX 1.7부터 algorithmFamily는 algorithmProperties 스키마의 정식 필드.
+    # 1.7 출력일 때는 native 필드로 박고, 동시에 기존 다운스트림 호환을 위해
+    # 커스텀 프로퍼티(securecapstone:algorithmFamily)도 유지한다.
+    # curve는 1.7에서 deprecated 됐으므로 양쪽 spec 모두 커스텀 프로퍼티만 사용.
+    if alg_family and spec_version >= "1.7":
+        alg_props["algorithmFamily"] = alg_family
+
     comp = {
         "bom-ref": ref, "type": "cryptographic-asset", "name": name,
         "cryptoProperties": {"assetType": "algorithm",
@@ -1071,6 +1079,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
                     make_property("securecapstone:source", source),
                     make_property("securecapstone:key_exchange:group", name),
                 ],
+                spec_version=spec_version,
             )
             register_component(child_ref, child_comp, root=True, related_type="algorithm")
             child_refs.append(child_ref)
@@ -1087,6 +1096,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
                     make_property("securecapstone:key_exchange:group", name),
                     make_property("securecapstone:key_exchange:decomposed", child_unique),
                 ],
+                spec_version=spec_version,
             )
             register_component(group_ref, group_comp, root=True, related_type="algorithm")
             if child_refs:
@@ -1094,12 +1104,18 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
 
     cert_sig_ref = None
     if ca.get("cert_signature_algorithm"):
-        cert_sig_ref, c = build_algorithm_component(ca["cert_signature_algorithm"], "certificate-signature")
+        cert_sig_ref, c = build_algorithm_component(
+            ca["cert_signature_algorithm"], "certificate-signature",
+            spec_version=spec_version,
+        )
         register_component(cert_sig_ref, c, root=True, related_type="algorithm")
 
     pk_alg_ref = None
     if ca.get("cert_public_key_algorithm"):
-        pk_alg_ref, c = build_algorithm_component(ca["cert_public_key_algorithm"], "public-key")
+        pk_alg_ref, c = build_algorithm_component(
+            ca["cert_public_key_algorithm"], "public-key",
+            spec_version=spec_version,
+        )
         register_component(pk_alg_ref, c, root=True, related_type="algorithm")
 
     pk_ref, pk_c = build_public_key_component(cert_f, pk_alg_ref)
@@ -1128,6 +1144,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
                 alg_name,
                 "cipher-suite",
                 [make_property("securecapstone:cipher_suite", suite)],
+                spec_version=spec_version,
             )
             register_component(alg_ref, alg_comp, root=True, related_type="algorithm")
             alg_refs.append(alg_ref)
@@ -1205,7 +1222,7 @@ def generate_cbom(
     return convert_snapshot_to_cyclonedx(snapshot, spec_version=spec_version, redact=redact)
 
 
-def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.6") -> bool:
+def validate_cbom_cyclonedx(filepath: str, spec_version: str = "1.7") -> bool:
     """CycloneDX CLI를 사용하여 CBOM JSON의 스키마 준수 여부를 검증한다.
 
     Returns:

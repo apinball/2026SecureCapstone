@@ -132,6 +132,10 @@ Key Group: X25519MLKEM768
 > 단순히 `mlkem` 포함 여부로 분기하면 Stage 3를 Stage 2로 오판할 수 있습니다.
 > **정확한 판정 기준: `x25519` 기반이면 Stage 2, `p384`/`p521` 기반이면 Stage 3**
 
+### TLS ↔ CBOM 교차 검증 (`--verify-tls`)
+
+`policy/cbom_diff.py`에 실제 TLS 핸드셰이크 결과와 CBOM 선언 알고리즘을 비교하는 교차 검증 기능이 추가되었습니다. CI 파이프라인은 `--verify-tls --tls-host proxy-server --tls-port 443 --tls-exec-container tls-tester --fail-on-mismatch` 옵션으로 호출되어, CBOM에 선언된 KEM/서명/대칭 알고리즘이 실제 핸드셰이크에서 관측된 cipher·key group과 일치하는지 `PASS/MISMATCH/SKIPPED`로 리포트하고 불일치 시 파이프라인을 실패시킵니다. `--tls-exec-container`는 호스트가 아닌 지정 docker 컨테이너 내부에서 `openssl s_client`를 실행하는 옵션으로, 러너에서 docker-compose 내부 서비스명 DNS 해석 불가·OQS provider 부재 문제를 우회하기 위해 OQS 번들 openssl을 보유한 `tls-tester` 컨테이너에서 핸드셰이크를 수행합니다.
+
 ---
 
 ## CI/CD 파이프라인

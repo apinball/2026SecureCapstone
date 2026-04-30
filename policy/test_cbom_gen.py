@@ -46,8 +46,10 @@ class TestAlgorithmFamilyNativeField(unittest.TestCase):
         self.assertEqual(_alg_props(comp).get("algorithmFamily"), "AES")
 
     def test_17_rsa(self):
+        # 키 사이즈는 generic-rsa-key-size-weak 룰을 우회하기 위해 3072 사용.
+        # 이 테스트는 algorithmFamily 추출만 검증하므로 사이즈는 의미 없음.
         _ref, comp = build_algorithm_component(
-            "RSA-2048", "public-key", spec_version="1.7")
+            "RSA-3072", "public-key", spec_version="1.7")
         self.assertEqual(_alg_props(comp).get("algorithmFamily"), "RSA")
 
     def test_curve_remains_custom_only(self):

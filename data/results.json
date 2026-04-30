@@ -1,18 +1,18 @@
 {
   "stage": "2",
-  "run_number": "330",
-  "timestamp": "2026-04-30T06:15:45Z",
-  "commit": "0c7568fe0b55c36227659b18f5a4db5db145af7a",
+  "run_number": "332",
+  "timestamp": "2026-04-30T06:26:48Z",
+  "commit": "4a39fe02c6f8642623ac471466f3b4eeb056a3a2",
   "branch": "feature/cbom-1.7-with-tls-stack-verification",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",
     "semgrep": "pass",
-    "tls_check": "unknown"
+    "tls_check": "pass"
   },
-  "findings": 1,
+  "findings": 0,
   "cbom": {
-    "manual_action_required": "1",
-    "status": "REGRESSED"
+    "manual_action_required": "0",
+    "status": "UNCHANGED"
   }
 }

@@ -1,8 +1,8 @@
 {
   "stage": "2",
-  "run_number": "332",
-  "timestamp": "2026-04-30T06:26:48Z",
-  "commit": "4a39fe02c6f8642623ac471466f3b4eeb056a3a2",
+  "run_number": "334",
+  "timestamp": "2026-04-30T06:55:48Z",
+  "commit": "1b369900a4a98e79209484957cdfd1751ed241c7",
   "branch": "feature/cbom-1.7-with-tls-stack-verification",
   "scans": {
     "trivy": "pass",

@@ -1,8 +1,8 @@
 {
   "stage": "2",
-  "run_number": "344",
-  "timestamp": "2026-05-03T10:15:48Z",
-  "commit": "3030b57d33a9ca68a9d3678d7f2cb82981a7b71a",
+  "run_number": "346",
+  "timestamp": "2026-05-03T10:21:03Z",
+  "commit": "8c41a5e9bfa4ff8bf9f7e1c23512ad0d3bf93d0a",
   "branch": "feature/stage3ca",
   "scans": {
     "trivy": "pass",

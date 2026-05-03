@@ -14,9 +14,12 @@ RUN apk add --no-cache \
 COPY scanner/tls_check.sh /usr/local/bin/tls_check.sh
 COPY tester/capture_tls.sh /usr/local/bin/capture_tls.sh
 COPY tester/compare_captures.sh /usr/local/bin/compare_captures.sh
+COPY perf-rollback/perf_check.sh /usr/local/bin/perf_check.sh
 RUN sed -i 's/\r//' /usr/local/bin/tls_check.sh \
                     /usr/local/bin/capture_tls.sh \
-                    /usr/local/bin/compare_captures.sh && \
+                    /usr/local/bin/compare_captures.sh \
+                    /usr/local/bin/perf_check.sh && \
     chmod +x /usr/local/bin/tls_check.sh \
              /usr/local/bin/capture_tls.sh \
-             /usr/local/bin/compare_captures.sh
+             /usr/local/bin/compare_captures.sh \
+             /usr/local/bin/perf_check.sh

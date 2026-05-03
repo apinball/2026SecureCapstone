@@ -52,6 +52,19 @@ elif [ "$GITLEAKS_EXIT" -eq 1 ]; then
     EXIT_CODE=1
 else
     echo "[ERROR] Gitleaks execution failed with exit code $GITLEAKS_EXIT"
+    python3 -c "
+import json
+summary = {
+    'tool': 'gitleaks',
+    'result': 'error',
+    'stage': $STAGE,
+    'summary': {
+        'leaks_found': 0
+    }
+}
+with open('$SUMMARY_FILE', 'w') as f:
+    json.dump(summary, f, indent=2)
+"
     exit 1
 fi
 

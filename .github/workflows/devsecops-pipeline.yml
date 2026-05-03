@@ -64,7 +64,7 @@ jobs:
       - name: 3. Semgrep 설치
         run: pip install --quiet semgrep || pip install --quiet --break-system-packages semgrep
 
-      - name: 4. PQC 자동 마이그레이션 (nginx 설정)
+      - name: 4. nginx 설정 자동 변경
         run: |
           echo "========================================"
           echo " PQC Auto-Migration — nginx TLS 설정 검사"
@@ -229,15 +229,93 @@ jobs:
           docker cp tls-tester:/usr/local/bin/results/tls-check-summary.json scanner/results/tls-check-summary.json || true
           exit $tls_check_status
 
+      - name: 10. 성능 검증 및 자동 롤백
+        id: perf_rollback
+        if: always()
+        run: |
+          mkdir -p perf-rollback/results
+
+          # Step 10-1: 성능 측정 (perf_check.sh)
+          echo "진행 중: TLS 핸드셰이크 성능 측정..."
+          BASELINE_ARG=""
+
+          # Step 10-2: Stage 1이 아닌 경우 baseline 아티팩트 다운로드
+          if [ "${{ env.STAGE }}" != "1" ]; then
+            ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+              --jq '.artifacts
+                | map(select(.expired == false))
+                | map(select(.name == "perf-baseline-stage1"))
+                | sort_by(.created_at)
+                | reverse
+                | .[0].id // empty' 2>/dev/null || true)
+
+            if [ -n "$ARTIFACT_ID" ]; then
+              echo "Stage 1 baseline 아티팩트 발견 (ID: $ARTIFACT_ID) — 다운로드 중..."
+              gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
+                > /tmp/perf_baseline.zip 2>/dev/null || true
+              unzip -p /tmp/perf_baseline.zip perf-check-summary.json \
+                > perf-rollback/results/baseline-stage1.json 2>/dev/null || true
+              if [ -f "perf-rollback/results/baseline-stage1.json" ]; then
+                BASELINE_ARG="perf-rollback/results/baseline-stage1.json"
+                echo "baseline 파일 로드 완료: $BASELINE_ARG"
+              fi
+            else
+              echo "Stage 1 baseline 아티팩트 없음 — 상대 임계치 스킵"
+            fi
+          fi
+
+          set +e
+          docker exec tls-tester perf_check.sh proxy-server 443 ${{ env.STAGE }} $BASELINE_ARG
+          PERF_EXIT=$?
+          set -e
+          if [ "$PERF_EXIT" -ne 0 ]; then
+            echo "::warning::perf_check.sh exited with status $PERF_EXIT. Continuing so artifacts and rollback evaluation can still run."
+          else
+            echo "perf_check.sh completed successfully."
+          fi
+
+          docker cp tls-tester:/usr/local/bin/results/perf-check-summary.json \
+            perf-rollback/results/perf-check-summary.json || true
+
+          # Stage 1이면 baseline 아티팩트로 저장
+          if [ "${{ env.STAGE }}" = "1" ]; then
+            echo "Stage 1 baseline 저장 예정 (아티팩트 업로드 step에서 처리)"
+          fi
+
+          # Step 10-3: 롤백 판정 (rollback.sh)
+          echo ""
+          echo "진행 중: 롤백 판정..."
+          bash perf-rollback/rollback.sh ${{ env.STAGE }} \
+            perf-rollback/results/perf-check-summary.json || true
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 성능 검증 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results-stage${{ env.STAGE }}-run${{ github.run_number }}
+          path: perf-rollback/results/
+
+      - name: Stage 1 baseline 아티팩트 저장
+        if: always() && env.STAGE == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline-stage1
+          path: perf-rollback/results/perf-check-summary.json
+          overwrite: true
+
       - name: CycloneDX CLI 설치
         if: always()
         run: |
-          CDXVER="v0.27.1"
+          # CycloneDX spec v1.7 validation은 cyclonedx-cli v0.30.0부터 지원됨 (PR #479).
+          CDXVER="v0.30.0"
           wget -q "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CDXVER}/cyclonedx-linux-x64" \
             -O /usr/local/bin/cyclonedx
           chmod +x /usr/local/bin/cyclonedx
 
-      - name: 10. CBOM 명세서 생성 및 리포팅
+      - name: 11. CBOM 명세서 생성 및 리포팅
         id: cbom_report
         if: always()
         run: |
@@ -336,22 +414,34 @@ jobs:
             echo "이전 CBOM 없음 — 첫 실행으로 처리 (BASELINE)"
           fi
 
+          # TLS 핸드셰이크는 tls-tester 컨테이너 내부에서 수행한다.
+          # - 러너 호스트는 docker-compose 내부 서비스명(proxy-server)을 DNS 해석할 수 없음
+          # - 러너 기본 openssl 에는 OQS provider 가 없어 Stage 2/3 PQC 핸드셰이크 불가
+          # tls-tester 는 openquantumsafe/curl 기반이라 OQS 번들 openssl 보유 + 같은 네트워크.
+          # --tls-stage 는 Stage 정책에 맞춰 -groups 옵션을 자동 부여한다
+          # (Stage 2: X25519MLKEM768, Stage 3: mlkem1024).
           python policy/cbom_diff.py \
             --current artifacts/cbom_stage${{ env.STAGE }}.json \
             --previous "$PREV_CBOM" \
-            --out artifacts/cbom_stage${{ env.STAGE }}.json
+            --out artifacts/cbom_stage${{ env.STAGE }}.json \
+            --verify-tls \
+            --tls-host proxy-server \
+            --tls-port 443 \
+            --tls-exec-container tls-tester \
+            --tls-stage ${{ env.STAGE }} \
+            --fail-on-mismatch
 
-          # ── CycloneDX 1.6 schema validation (최종 CBOM 검증) ──
-          echo "CycloneDX 1.6 schema validation 시작..."
+          # ── CycloneDX 1.7 schema validation (최종 CBOM 검증) ──
+          echo "CycloneDX 1.7 schema validation 시작..."
           if ! cyclonedx validate \
             --input-file artifacts/cbom_stage${{ env.STAGE }}.json \
             --input-format json \
-            --input-version v1_6 --fail-on-errors; then
-            echo "[FAIL] CycloneDX 1.6 schema validation 실패 — 위 출력 참고"
+            --input-version v1_7 --fail-on-errors; then
+            echo "[FAIL] CycloneDX 1.7 schema validation 실패 — 위 출력 참고"
             echo "  대상 파일: artifacts/cbom_stage${{ env.STAGE }}.json"
             exit 1
           fi
-          echo "[PASS] CycloneDX 1.6 schema validation 통과"
+          echo "[PASS] CycloneDX 1.7 schema validation 통과"
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

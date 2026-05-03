@@ -22,7 +22,7 @@ echo "Target : $SCAN_TARGET"
 echo "Stage  : $STAGE"
 echo ""
 
-# Run semgrep scan (crypto-classical.yaml only — tls-policy.yaml은 Security Gate Step에서 별도 실행)
+# Run semgrep scan (crypto-classical.yaml only — tls-policy.yaml is run separately in the Security Gate step)
 CRYPTO_RULES="$RULES_DIR/crypto-classical.yaml"
 if [ -f "$CRYPTO_RULES" ]; then
     semgrep --config "$CRYPTO_RULES" --json --output "$OUTPUT_FILE" --quiet --exclude "*.yaml" --exclude "*.toml" --exclude "*.conf" --exclude "pqc-webserver/*" "$SCAN_TARGET"

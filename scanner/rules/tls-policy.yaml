@@ -1,5 +1,5 @@
 rules:
-  # ── 탐지 + 자동 수정 (nginx autofix) ─────────────────────────────────────
+  # Detection + auto-fix (nginx autofix)
 
   - id: nginx-weak-tls-protocol-10
     message: "TLSv1.0 detected in ssl_protocols — auto-migrating to TLSv1.3 only"

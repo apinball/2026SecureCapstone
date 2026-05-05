@@ -9,16 +9,20 @@
 
 ARG ALPINE_VERSION=3.20
 ARG OPENSSL_VERSION=3.4.0
+ARG OPENSSL_SHA256=e15dda82fe2fe8139dc2ac21a36d4ca01d5313c75f99f46c4e8a27709b7294bf
 ARG LIBOQS_VERSION=0.13.0
 ARG OQSPROVIDER_VERSION=0.9.0
 ARG NGINX_VERSION=1.27.2
+ARG NGINX_SHA256=a91ecfc3a0b3a2c1413afca627bd886d76e0414b81cad0fb7872a9655a1b25fa
 
 # -----------------------------------------------------------------------------
 FROM alpine:${ALPINE_VERSION} AS builder
 ARG OPENSSL_VERSION
+ARG OPENSSL_SHA256
 ARG LIBOQS_VERSION
 ARG OQSPROVIDER_VERSION
 ARG NGINX_VERSION
+ARG NGINX_SHA256
 
 RUN apk add --no-cache \
     build-base linux-headers \
@@ -27,16 +31,17 @@ RUN apk add --no-cache \
 
 WORKDIR /build
 
-# OpenSSL 3
+# OpenSSL 3 — sha256 검증으로 공급망 무결성 보장, --libdir=lib로 경로 고정
 RUN wget -q https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz && \
+    echo "${OPENSSL_SHA256}  openssl-${OPENSSL_VERSION}.tar.gz" | sha256sum -c - && \
     tar xf openssl-${OPENSSL_VERSION}.tar.gz && \
     cd openssl-${OPENSSL_VERSION} && \
-    ./Configure --prefix=/opt/oqs --openssldir=/opt/oqs/ssl shared && \
+    ./Configure --prefix=/opt/oqs --openssldir=/opt/oqs/ssl --libdir=lib shared && \
     make -j$(nproc) && \
     make install_sw
 
 ENV PATH=/opt/oqs/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/oqs/lib64:/opt/oqs/lib
+ENV LD_LIBRARY_PATH=/opt/oqs/lib
 
 # liboqs (OpenSSL은 KAT/test 용도라 OFF로 비활성화)
 RUN git clone --depth 1 --branch ${LIBOQS_VERSION} https://github.com/open-quantum-safe/liboqs.git && \
@@ -80,7 +85,7 @@ activate = 1
 
 [oqsprovider_sect]
 activate = 1
-module = /opt/oqs/lib64/ossl-modules/oqsprovider.so
+module = /opt/oqs/lib/ossl-modules/oqsprovider.so
 
 [ssl_sect]
 system_default = system_default_sect
@@ -89,9 +94,12 @@ system_default = system_default_sect
 CipherString = DEFAULT:@SECLEVEL=0
 EOF
 
-# nginx (linked against /opt/oqs OpenSSL 3 + oqsprovider)
+# nginx — OpenSSL 3 + oqsprovider에 링크. 다운로드는 sha256 검증.
+# wget이 /opt/oqs OpenSSL을 사용해 시스템 CA 경로를 못 찾는 문제를 LD_LIBRARY_PATH
+# unset으로 회피(Alpine 시스템 OpenSSL이 표준 CA로 검증).
 RUN unset LD_LIBRARY_PATH && \
-    wget --no-check-certificate https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    echo "${NGINX_SHA256}  nginx-${NGINX_VERSION}.tar.gz" | sha256sum -c - && \
     tar xf nginx-${NGINX_VERSION}.tar.gz && \
     cd nginx-${NGINX_VERSION} && \
     ./configure --prefix=/opt/nginx \
@@ -99,7 +107,7 @@ RUN unset LD_LIBRARY_PATH && \
         --with-http_ssl_module \
         --with-http_v2_module \
         --with-cc-opt="-I/opt/oqs/include" \
-        --with-ld-opt="-L/opt/oqs/lib64 -L/opt/oqs/lib -Wl,-rpath,/opt/oqs/lib64:/opt/oqs/lib" && \
+        --with-ld-opt="-L/opt/oqs/lib -Wl,-rpath,/opt/oqs/lib" && \
     make -j$(nproc) && \
     make install
 
@@ -127,9 +135,9 @@ COPY --from=cert-builder /certs/dilithium3.crt /etc/nginx/certs/dilithium3.crt
 COPY --from=cert-builder /certs/dilithium3.key /etc/nginx/certs/dilithium3.key
 
 ENV PATH=/opt/nginx/sbin:/opt/oqs/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/oqs/lib64:/opt/oqs/lib
+ENV LD_LIBRARY_PATH=/opt/oqs/lib
 ENV OPENSSL_CONF=/opt/oqs/ssl/openssl.cnf
-ENV OPENSSL_MODULES=/opt/oqs/lib64/ossl-modules
+ENV OPENSSL_MODULES=/opt/oqs/lib/ossl-modules
 
 # RSA 인증서 (Stage 1/2)
 RUN openssl req -x509 -newkey rsa:2048 -days 365 \

@@ -1,9 +1,9 @@
 {
   "stage": "2",
-  "run_number": "353",
-  "timestamp": "2026-05-10T09:23:59Z",
-  "commit": "64e3cdd0359ced1a16bca01370a4fda601dad242",
-  "branch": "develop",
+  "run_number": "355",
+  "timestamp": "2026-05-10T09:28:18Z",
+  "commit": "379d616b77fbf191cb84e1b22c332caef709c98a",
+  "branch": "feature/port-stage3ca-good-parts",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",

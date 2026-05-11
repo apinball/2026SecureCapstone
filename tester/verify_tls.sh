@@ -23,7 +23,7 @@ case "$STAGE" in
     ;;
   3|pq)
     CURVES="p521_mlkem1024:p384_mlkem768"
-    EXPECT="mlkem"
+    EXPECT="p521_mlkem|p384_mlkem"
     ;;
   *)
     echo "[verify_tls] 오류: stage=${STAGE} 는 유효하지 않습니다. {1|2|3}"
@@ -44,7 +44,7 @@ else
 fi
 
 # Stage별 알고리즘 확인
-if echo "$RESULT" | grep -qi "$EXPECT"; then
+if echo "$RESULT" | grep -qiE "$EXPECT"; then
     echo "[verify_tls] PASS — Stage $STAGE 알고리즘 협상 확인됨 ($EXPECT)"
     exit 0
 else

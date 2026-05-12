@@ -32,8 +32,10 @@ from datetime import datetime, timezone
 # 협상되도록 명시적으로 강제할 필요가 있다.
 # Stage 1 은 클래식이라 매핑하지 않음 (.get 으로 None 반환되어 기본 동작).
 STAGE_TLS_GROUPS = {
-    "2": "X25519MLKEM768",     # Stage 2: 하이브리드 PQC
-    "3": "mlkem1024",          # Stage 3: 순수 PQC
+    "2": "X25519MLKEM768",                    # Stage 2: 하이브리드 PQC
+    "3": "p521_mlkem1024:p384_mlkem768",      # Stage 3: 강한 하이브리드 PQC (NIST L5)
+    # NOTE: standalone mlkem1024는 OQS-Nginx 0.11.0 빌드에서 협상 불가하여
+    # nginx-pq.conf와 동일하게 hybrid 그룹으로 통일.
 }
 
 

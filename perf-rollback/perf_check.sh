@@ -37,10 +37,12 @@ TARGET="${HOST}:${PORT}"
 URL="https://${HOST}:${PORT}/"
 
 # Select curves based on stage
+# NOTE: Stage 3는 standalone mlkem1024가 OQS-Nginx 0.11.0 빌드에서 협상 불가하여
+# nginx-pq.conf와 동일하게 hybrid 그룹 p521_mlkem1024:p384_mlkem768로 통일.
 case "$STAGE" in
     1) CURVES="x25519:prime256v1:secp384r1" ;;
     2) CURVES="X25519MLKEM768" ;;
-    3) CURVES="mlkem1024" ;;
+    3) CURVES="p521_mlkem1024:p384_mlkem768" ;;
 esac
 
 echo "=== Performance Check ==="

@@ -1,0 +1,103 @@
+name: TLS Stage 2/3 Startup Verification
+
+# Issue #78 — Stage 2/3 회귀를 머지 전에 잡기 위한 매트릭스 검증.
+# 메인 파이프라인은 push/PR 트리거에서 기본 Stage 1만 실행하므로,
+# nginx/TLS 설정 변경이 Stage 2/3에서만 드러나는 회귀(예: PR #71의
+# nginx 이미지 sha256 핀이 Dilithium3 인증서를 거부한 케이스)를
+# 감지하지 못하는 구조적 공백이 있었음.
+#
+# 비용 최소화를 위해 path filter로 관련 파일 변경 시에만 실행.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'nginx/**'
+      - 'tester/**'
+      - 'scanner/tls_check.sh'
+      - 'scanner/rules/tls-policy.yaml'
+      - 'docker-compose.yml'
+      - '.github/workflows/devsecops-pipeline.yml'
+      - '.github/workflows/tls-stage-matrix.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'nginx/**'
+      - 'tester/**'
+      - 'scanner/tls_check.sh'
+      - 'scanner/rules/tls-policy.yaml'
+      - 'docker-compose.yml'
+      - '.github/workflows/devsecops-pipeline.yml'
+      - '.github/workflows/tls-stage-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-verify:
+    name: Stage ${{ matrix.stage }} startup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [2, 3]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare nginx config for Stage ${{ matrix.stage }}
+        run: |
+          if [ "${{ matrix.stage }}" = "2" ]; then
+            cp nginx/nginx-hybrid.conf nginx/nginx.conf
+          elif [ "${{ matrix.stage }}" = "3" ]; then
+            cp nginx/nginx-pq.conf nginx/nginx.conf
+          fi
+          echo "적용된 ssl_ecdh_curve:"
+          grep -E "ssl_ecdh_curve|ssl_protocols" nginx/nginx.conf || true
+
+      - name: Pull base images
+        run: |
+          docker pull openquantumsafe/nginx
+          docker pull openquantumsafe/curl
+
+      - name: Build and start
+        run: |
+          TLS_STAGE=${{ matrix.stage }} docker compose build
+          TLS_STAGE=${{ matrix.stage }} docker compose up -d
+
+      - name: Wait for healthcheck
+        run: |
+          if ! timeout 60 sh -c \
+            'until [ "$(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)" = "healthy" ]; do
+               echo "  상태: $(docker inspect --format="{{.State.Health.Status}}" pqc-proxy)"; sleep 3;
+             done'; then
+            echo "=== [DEBUG] healthcheck 실패 — 진단 로그 ==="
+            echo "--- docker inspect Health ---"
+            docker inspect --format='{{json .State.Health}}' pqc-proxy || true
+            echo ""
+            echo "--- docker logs pqc-proxy ---"
+            docker logs pqc-proxy 2>&1 || true
+            echo ""
+            echo "--- nginx -T config dump ---"
+            docker exec pqc-proxy nginx -T 2>&1 || true
+            exit 1
+          fi
+          echo "[OK] pqc-proxy healthy"
+
+      - name: Run tls_check.sh (Stage ${{ matrix.stage }} 정책 검증)
+        run: |
+          set +e
+          docker exec tls-tester tls_check.sh proxy-server 443 ${{ matrix.stage }}
+          tls_check_status=$?
+          set -e
+          if [ "$tls_check_status" -ne 0 ]; then
+            echo "[FAIL] tls_check.sh exited with status $tls_check_status"
+            exit $tls_check_status
+          fi
+          echo "[OK] Stage ${{ matrix.stage }} 정책 검증 통과"
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v || true

@@ -1,0 +1,52 @@
+========================================
+ Stage 1 패킷 분석
+========================================
+  파일: /data/stage1_capture.pcap (총 18패킷)
+
+  [ClientHello] 클라이언트 제안 그룹:
+                        [Group: Deprecated]
+                    Supported Groups List Length: 4
+                    Supported Groups (2 groups)
+                        Supported Group: x25519 (0x001d)
+                        Supported Group: secp256r1 (0x0017)
+                        Key Share Entry: Group: x25519, Key Exchange length: 32
+                            Group: x25519 (29)
+
+  [ServerHello] 서버 선택 키교환 그룹:
+                        [Group: Deprecated]
+                        Key Share Entry: Group: x25519, Key Exchange length: 32
+                            Group: x25519 (29)
+
+========================================
+ Stage 2 패킷 분석
+========================================
+  파일: /data/stage2_capture.pcap (총 17패킷)
+
+  [ClientHello] 클라이언트 제안 그룹:
+                        [Group: Deprecated]
+                    Supported Groups List Length: 4
+                    Supported Groups (2 groups)
+                        Supported Group: Unknown (0x11ec)
+                        Supported Group: x25519 (0x001d)
+                        Key Share Entry: Group: Unknown (4588), Key Exchange length: 1216
+                            Group: Unknown (4588)
+
+  [ServerHello] 서버 선택 키교환 그룹:
+                        [Group: Deprecated]
+                        Key Share Entry: Group: Unknown (4588), Key Exchange length: 1120
+                            Group: Unknown (4588)
+
+========================================
+ 비교 결과
+========================================
+
+  Stage 1 협상 그룹:                     [Group: Deprecated]                     Key Share Entry: Gro
+  Stage 2 협상 그룹:                     [Group: Deprecated]                     Key Share Entry: Gro
+
+  Stage 1: PASS — X25519 (Classical ECC) 협상 확인
+  Stage 2: PASS — X25519MLKEM768 (Hybrid PQC) 협상 확인
+
+  패킷 덤프 파일 위치 (호스트):
+    ./tester/captures/stage1_capture.pcap
+    ./tester/captures/stage2_capture.pcap
+  → Wireshark로 열어서 상세 확인 가능

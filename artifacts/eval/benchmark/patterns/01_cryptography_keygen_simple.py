@@ -3,13 +3,11 @@
 input: RSA-2048 키 쌍 생성 후 (private, public) 반환.
 expected migration target: ML-KEM-768 키 쌍 생성.
 """
-from cryptography.hazmat.primitives.asymmetric import rsa
+from oqs import KeyEncapsulation
 
 
+# PQC migration: replaced RSA with ML-KEM
 def generate_keypair():
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-    )
-    public_key = private_key.public_key()
-    return private_key, public_key
+    kem = KeyEncapsulation("Kyber768")
+    public_key = kem.generate_keypair()        # returns: bytes (public key)
+    return kem, public_key

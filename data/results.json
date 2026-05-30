@@ -1,8 +1,8 @@
 {
   "stage": "2",
-  "run_number": "373",
-  "timestamp": "2026-05-30T11:08:26Z",
-  "commit": "2c0ffe2fb126eb0ea322a7483b91956ab07bae5c",
+  "run_number": "372",
+  "timestamp": "2026-05-30T11:10:12Z",
+  "commit": "c39b921a6cd292a45fdd37def35ea16c582bc181",
   "branch": "feature/live-pqc-migration",
   "scans": {
     "trivy": "pass",
@@ -10,9 +10,9 @@
     "semgrep": "pass",
     "tls_check": "unknown"
   },
-  "findings": 27,
+  "findings": 0,
   "cbom": {
-    "manual_action_required": "27",
-    "status": "REGRESSED"
+    "manual_action_required": "0",
+    "status": "IMPROVED"
   }
 }

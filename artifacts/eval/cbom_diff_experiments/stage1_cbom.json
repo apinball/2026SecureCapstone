@@ -1,0 +1,23 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-16T15:00:00Z",
+    "tools": [{"name": "cbom_gen.py"}]
+  },
+  "properties": [
+    {
+      "name": "securecapstone:migration_summary",
+      "value": "{\"total_findings\": 5, \"manual_action_required\": 5, \"auto_migrated\": 0}"
+    },
+    {
+      "name": "securecapstone:classical_crypto_findings",
+      "value": "[{\"file\":\"nginx/nginx.conf\",\"line\":12,\"rule\":\"classical-ecdh\"},{\"file\":\"app/auth.py\",\"line\":45,\"rule\":\"rsa-2048\"},{\"file\":\"app/sign.py\",\"line\":22,\"rule\":\"ecdsa-p256\"},{\"file\":\"lib/keygen.py\",\"line\":8,\"rule\":\"rsa-2048\"},{\"file\":\"lib/wrap.py\",\"line\":17,\"rule\":\"rsa-oaep\"}]"
+    }
+  ],
+  "components": [
+    {"name": "X25519", "cryptoProperties": {"assetType": "algorithm"}},
+    {"name": "ECDSA-P256", "cryptoProperties": {"assetType": "algorithm"}}
+  ]
+}

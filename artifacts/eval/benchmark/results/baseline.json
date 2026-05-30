@@ -1,0 +1,317 @@
+{
+  "timestamp": "2026-05-08T08:08:10.919874+00:00",
+  "k": 1,
+  "offline": true,
+  "use_reference": false,
+  "n_patterns": 16,
+  "results": [
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 415,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 919,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not",
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 821,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1309,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.475,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1780,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1865,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not",
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1837,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1970,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 705,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 428,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 652,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not",
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1181,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.475,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1146,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1285,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not",
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1422,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1357,
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not",
+        "calls_encap: reference uses but candidate does not",
+        "calls_decap: reference uses but candidate does not"
+      ]
+    }
+  ]
+}

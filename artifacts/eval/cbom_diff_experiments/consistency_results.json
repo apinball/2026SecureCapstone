@@ -1,0 +1,59 @@
+{
+  "results": [
+    {
+      "id": "C1",
+      "scenario": "All three agree on Stage 2",
+      "expected_consistent": true,
+      "actual_consistent": true,
+      "warning_count": 0,
+      "warnings": [],
+      "match": "PASS"
+    },
+    {
+      "id": "C2",
+      "scenario": "Requested Stage 2 but server negotiates Stage 1",
+      "expected_consistent": false,
+      "actual_consistent": false,
+      "warning_count": 1,
+      "warnings": [
+        "요청 Stage(2)와 실제 협상 결과(Stage 1)가 다릅니다. 서버 설정이 올바르게 적용되었는지 확인하세요."
+      ],
+      "match": "PASS"
+    },
+    {
+      "id": "C3",
+      "scenario": "cbom_gen says Stage 2, verify script says Stage 3",
+      "expected_consistent": false,
+      "actual_consistent": false,
+      "warning_count": 1,
+      "warnings": [
+        "판정 불일치: 검증 스크립트는 Stage 3, cbom_gen은 STAGE_2_HYBRID_PQC으로 판정했습니다. 파싱 로직 또는 알고리즘 매핑을 확인하세요."
+      ],
+      "match": "PASS"
+    },
+    {
+      "id": "C4",
+      "scenario": "All three agree on Stage 3",
+      "expected_consistent": true,
+      "actual_consistent": true,
+      "warning_count": 0,
+      "warnings": [],
+      "match": "PASS"
+    },
+    {
+      "id": "C5",
+      "scenario": "All three signals mismatch",
+      "expected_consistent": false,
+      "actual_consistent": false,
+      "warning_count": 2,
+      "warnings": [
+        "판정 불일치: 검증 스크립트는 Stage 1, cbom_gen은 STAGE_2_HYBRID_PQC으로 판정했습니다. 파싱 로직 또는 알고리즘 매핑을 확인하세요.",
+        "요청 Stage(3)와 실제 협상 결과(Stage 2)가 다릅니다. 서버 설정이 올바르게 적용되었는지 확인하세요."
+      ],
+      "match": "PASS"
+    }
+  ],
+  "accuracy_n": 5,
+  "accuracy_total": 5,
+  "accuracy_str": "5/5"
+}

@@ -1,0 +1,41 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-16T15:01:00Z",
+    "tools": [
+      {
+        "name": "cbom_gen.py"
+      }
+    ]
+  },
+  "properties": [
+    {
+      "name": "securecapstone:migration_summary",
+      "value": "{\"total_findings\": 5, \"manual_action_required\": 2, \"auto_migrated\": 3}"
+    },
+    {
+      "name": "securecapstone:classical_crypto_findings",
+      "value": "[{\"file\":\"lib/keygen.py\",\"line\":8,\"rule\":\"rsa-2048\"},{\"file\":\"lib/wrap.py\",\"line\":17,\"rule\":\"rsa-oaep\"}]"
+    },
+    {
+      "name": "securecapstone:migration_progress",
+      "value": "{\"compared_at\": \"2026-05-30T10:31:39Z\", \"status\": \"REGRESSED\", \"previous_manual_required\": 0, \"current_manual_required\": 2, \"delta\": -2, \"resolved_count\": 0, \"new_count\": 2, \"new_findings\": [\"lib/keygen.py:8:rsa-2048\", \"lib/wrap.py:17:rsa-oaep\"]}"
+    }
+  ],
+  "components": [
+    {
+      "name": "X25519MLKEM768",
+      "cryptoProperties": {
+        "assetType": "algorithm"
+      }
+    },
+    {
+      "name": "ECDSA-P256",
+      "cryptoProperties": {
+        "assetType": "algorithm"
+      }
+    }
+  ]
+}

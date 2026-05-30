@@ -1,0 +1,1259 @@
+{
+  "timestamp": "2026-05-08T08:32:55.783846+00:00",
+  "k": 5,
+  "offline": false,
+  "use_reference": false,
+  "n_patterns": 16,
+  "results": [
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 721,
+      "candidate_preview": "\"\"\"Pattern 01 — cryptography.hazmat: ML-KEM 및 ML-DSA 키 쌍 생성.\n\ninput: ML-KEM-768 키 쌍 생성 후 (private, public) 반환.\nexpected migration target: ML-KEM 및 ML-DSA 사용.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair():\n    private_key, public_key = Signature.generate_keypair()\n    retur",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature.generate_keypair() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.encap_secret() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.decap_secret() — 클래스 직접 호출 금지",
+        "Signature.sign() — 클래스 직접 호출 금지",
+        "Signature.verify() — 클래스 직접 호출 금지",
+        "KeyEncapsulation(...) 인스턴스 생성 패턴 없음",
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 325,
+      "candidate_preview": "\"\"\"Pattern 01 — cryptography.hazmat: ML-KEM 및 ML-DSA 키 쌍 생성.\n\ninput: ML-KEM-768 키 쌍 생성 후 (private, public) 반환.\nexpected migration target: ML-KEM 및 ML-DSA 사용.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair():\n    private_key, public_key = Signature.generate_keypair()\n    retur",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature.generate_keypair() — 클래스 직접 호출 금지",
+        "KeyEncapsulation(...) 인스턴스 생성 패턴 없음",
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 721,
+      "candidate_preview": "\"\"\"Pattern 01 — cryptography.hazmat: ML-KEM 및 ML-DSA 키 쌍 생성.\n\ninput: ML-KEM-768 키 쌍 생성 후 (private, public) 반환.\nexpected migration target: ML-KEM 및 ML-DSA 사용.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair():\n    private_key, public_key = Signature.generate_keypair()\n    retur",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature.generate_keypair() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.encap_secret() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.decap_secret() — 클래스 직접 호출 금지",
+        "Signature.sign() — 클래스 직접 호출 금지",
+        "Signature.verify() — 클래스 직접 호출 금지",
+        "KeyEncapsulation(...) 인스턴스 생성 패턴 없음",
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 721,
+      "candidate_preview": "\"\"\"Pattern 01 — cryptography.hazmat: ML-KEM 및 ML-DSA 키 쌍 생성.\n\ninput: ML-KEM-768 키 쌍 생성 후 (private, public) 반환.\nexpected migration target: ML-KEM 및 ML-DSA 사용.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair():\n    private_key, public_key = Signature.generate_keypair()\n    retur",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature.generate_keypair() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.encap_secret() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.decap_secret() — 클래스 직접 호출 금지",
+        "Signature.sign() — 클래스 직접 호출 금지",
+        "Signature.verify() — 클래스 직접 호출 금지",
+        "KeyEncapsulation(...) 인스턴스 생성 패턴 없음",
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "01",
+      "pattern_file": "01_cryptography_keygen_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 721,
+      "candidate_preview": "\"\"\"Pattern 01 — cryptography.hazmat: ML-KEM 및 ML-DSA 키 쌍 생성.\n\ninput: ML-KEM-768 키 쌍 생성 후 (private, public) 반환.\nexpected migration target: ML-KEM 및 ML-DSA 사용.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair():\n    private_key, public_key = Signature.generate_keypair()\n    retur",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature.generate_keypair() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.encap_secret() — 클래스 직접 호출 금지",
+        "KeyEncapsulation.decap_secret() — 클래스 직접 호출 금지",
+        "Signature.sign() — 클래스 직접 호출 금지",
+        "Signature.verify() — 클래스 직접 호출 금지",
+        "KeyEncapsulation(...) 인스턴스 생성 패턴 없음",
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1579,
+      "candidate_preview": "\"\"\"Pattern 02 — cryptography.hazmat: ML-KEM 암호화/복호화 함수 쌍.\n\ninput: 공개 키로 메시지 암호화, 개인 키로 복호화.\nexpected migration target: ML-KEM(공유 비밀 도출) + AES-GCM(메시지 암호화) 결합.\n주의: KEM은 RSA-OAEP처럼 임의 메시지를 직접 암호화하지 않음. shared secret을 도출한 뒤\nAEAD로 메시지를 암호화해야 함. 이 결합을 누락하면 보안 회귀.\n\"\"\"\nfrom oqs import KeyEncapsulation, Sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 1553,
+      "candidate_preview": "\"\"\"Pattern 02 — cryptography.hazmat: ML-KEM 암호화/복호화 함수 쌍.\n\ninput: 공개 키로 메시지 암호화, 개인 키로 복호화.\nexpected migration target: ML-KEM(공유 비밀 도출) + AES-GCM(메시지 암호화) 결합.\n주의: KEM은 RSA-OAEP처럼 임의 메시지를 직접 암호화하지 않음. shared secret을 도출한 뒤\nAEAD로 메시지를 암호화해야 함. 이 결합을 누락하면 보안 회귀.\n\"\"\"\nfrom oqs import KeyEncapsulation, Sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 1452,
+      "candidate_preview": "\"\"\"Pattern 02 — cryptography.hazmat: ML-KEM 및 ML-DSA 암호화/복호화 함수 쌍.\n\ninput: 공개 키로 메시지 암호화, 개인 키로 복호화.\nexpected migration target: ML-KEM(공유 비밀 도출) + AES-GCM(메시지 암호화) 결합.\n주의: KEM은 RSA-OAEP처럼 임의 메시지를 직접 암호화하지 않음. shared secret을 도출한 뒤\nAEAD로 메시지를 암호화해야 함. 이 결합을 누락하면 보안 회귀.\n\"\"\"\nfrom oqs import KeyEncapsula",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 830,
+      "candidate_preview": "\"\"\"Pattern 02 — cryptography.hazmat: ML-KEM 및 ML-DSA 암호화/복호화 함수 쌍.\n\ninput: 공개 키로 메시지 암호화, 개인 키로 복호화.\nexpected migration target: ML-KEM(공유 비밀 도출) + AES-GCM(메시지 암호화) 결합.\n주의: KEM은 RSA-OAEP처럼 임의 메시지를 직접 암호화하지 않음. shared secret을 도출한 뒤\nAEAD로 메시지를 암호화해야 함. 이 결합을 누락하면 보안 회귀.\n\"\"\"\nfrom oqs import KeyEncapsula",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "02",
+      "pattern_file": "02_cryptography_encrypt_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1456,
+      "candidate_preview": "\"\"\"Pattern 02 — cryptography.hazmat: ML-KEM 및 ML-DSA 암호화/복호화 함수 쌍.\n\ninput: 공개 키로 메시지 암호화, 개인 키로 복호화.\nexpected migration target: ML-KEM(공유 비밀 도출) + AES-GCM(메시지 암호화) 결합.\n주의: KEM은 RSA-OAEP처럼 임의 메시지를 직접 암호화하지 않음. shared secret을 도출한 뒤\nAEAD로 메시지를 암호화해야 함. 이 결합을 누락하면 보안 회귀.\n\"\"\"\nfrom oqs import KeyEncapsula",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 372,
+      "candidate_preview": "\"\"\"Pattern 03 — cryptography.hazmat: ML-DSA 서명/검증 (단순).\n\nintent: 디지털 서명 용도. 메시지 인증성 보장.\nexpected migration target: ML-DSA-65 (Dilithium3).\n\"\"\"\nfrom oqs import Signature\n\n\ndef sign(private_key, message: bytes) -> bytes:\n    return private_key.sign(message)\n\n\ndef verify(public_key, message: bytes, sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 372,
+      "candidate_preview": "\"\"\"Pattern 03 — cryptography.hazmat: ML-DSA 서명/검증 (단순).\n\nintent: 디지털 서명 용도. 메시지 인증성 보장.\nexpected migration target: ML-DSA-65 (Dilithium3).\n\"\"\"\nfrom oqs import Signature\n\n\ndef sign(private_key, message: bytes) -> bytes:\n    return private_key.sign(message)\n\n\ndef verify(public_key, message: bytes, sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 372,
+      "candidate_preview": "\"\"\"Pattern 03 — cryptography.hazmat: ML-DSA 서명/검증 (단순).\n\nintent: 디지털 서명 용도. 메시지 인증성 보장.\nexpected migration target: ML-DSA-65 (Dilithium3).\n\"\"\"\nfrom oqs import Signature\n\n\ndef sign(private_key, message: bytes) -> bytes:\n    return private_key.sign(message)\n\n\ndef verify(public_key, message: bytes, sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 372,
+      "candidate_preview": "\"\"\"Pattern 03 — cryptography.hazmat: ML-DSA 서명/검증 (단순).\n\nintent: 디지털 서명 용도. 메시지 인증성 보장.\nexpected migration target: ML-DSA-65 (Dilithium3).\n\"\"\"\nfrom oqs import Signature\n\n\ndef sign(private_key, message: bytes) -> bytes:\n    return private_key.sign(message)\n\n\ndef verify(public_key, message: bytes, sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "03",
+      "pattern_file": "03_cryptography_sign_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 372,
+      "candidate_preview": "\"\"\"Pattern 03 — cryptography.hazmat: ML-DSA 서명/검증 (단순).\n\nintent: 디지털 서명 용도. 메시지 인증성 보장.\nexpected migration target: ML-DSA-65 (Dilithium3).\n\"\"\"\nfrom oqs import Signature\n\n\ndef sign(private_key, message: bytes) -> bytes:\n    return private_key.sign(message)\n\n\ndef verify(public_key, message: bytes, sig",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 971,
+      "candidate_preview": "\"\"\"Pattern 04 — cryptography.hazmat: ML-KEM 기반 AES 세션 키 래핑 (key exchange).\n\nintent: 송신자가 임의 AES 키를 생성하여 ML-KEM로 wrap, 수신자가 unwrap 후 AES-GCM 복호.\nexpected migration target: ML-KEM-768 + AES-GCM (KEM은 자체로 키 교환 프리미티브).\n\"\"\"\nimport os\nfrom cryptography.hazmat.primitives import hashes\nfrom cryptography.haz",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 54 seconds before retrying.\",\"details\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 54 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 2,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 44 seconds before retrying.\",\"details\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 44 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 3,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 33 seconds before retrying.\",\"details\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 33 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "04",
+      "pattern_file": "04_cryptography_kex_simple.py",
+      "trial": 4,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 23 seconds before retrying.\",\"details\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 23 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 0,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\",\"details\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 2 seconds before retrying.\",\"details\":\"Rate limit of 60000 per 60s exceeded for UserByModelByMinuteTokens. Please wait 2 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 1628,
+      "candidate_preview": "\"\"\"Pattern 05 — cryptography.hazmat: KeyManager 클래스 + PEM 파일 IO (복잡).\n\nintent: 키 생성 후 PEM 파일로 저장, 나중에 다시 로드. 일반적인 OSS 사용 패턴.\nexpected migration target: ML-KEM-768 KeyManager. PEM은 KEM 키에 정의돼 있지 않으므로\nraw bytes로 저장 (또는 PKCS#8 PEM 별도 인코딩 — 정답에서 raw bytes 선택).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\ncl",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1566,
+      "candidate_preview": "\"\"\"Pattern 05 — cryptography.hazmat: KeyManager 클래스 + PEM 파일 IO (복잡).\n\nintent: 키 생성 후 PEM 파일로 저장, 나중에 다시 로드. 일반적인 OSS 사용 패턴.\nexpected migration target: ML-KEM-768 KeyManager. PEM은 KEM 키에 정의돼 있지 않으므로\nraw bytes로 저장 (또는 PKCS#8 PEM 별도 인코딩 — 정답에서 raw bytes 선택).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\ncl",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "05",
+      "pattern_file": "05_cryptography_keygen_complex.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1314,
+      "candidate_preview": "\"\"\"Pattern 05 — cryptography.hazmat: KeyManager 클래스 + PEM 파일 IO (복잡).\n\nintent: 키 생성 후 PEM 파일로 저장, 나중에 다시 로드. 일반적인 OSS 사용 패턴.\nexpected migration target: ML-KEM-768 KeyManager. PEM은 KEM 키에 정의돼 있지 않으므로\nraw bytes로 저장 (또는 PKCS#8 PEM 별도 인코딩 — 정답에서 raw bytes 선택).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\ncl",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 2198,
+      "candidate_preview": "\"\"\"Pattern 06 — cryptography.hazmat: SecureMessenger 클래스 + 파일 IO (복잡).\n\nintent: 디스크에 저장된 PEM 공개 키로 암호화하여 ciphertext 파일을 출력하고, 비밀 키로 복호.\nexpected migration target: ML-KEM-768 + AES-GCM, 파일 형식은 (kem_ct || nonce || aead_ct).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass SecureMessenger:\n    def __init",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 2487,
+      "candidate_preview": "\"\"\"Pattern 06 — cryptography.hazmat: SecureMessenger 클래스 + 파일 IO (복잡).\n\nintent: 디스크에 저장된 PEM 공개 키로 암호화하여 ciphertext 파일을 출력하고, 비밀 키로 복호.\nexpected migration target: ML-KEM-768 + AES-GCM, 파일 형식은 (kem_ct || nonce || aead_ct).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass SecureMessenger:\n    def __init",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 2476,
+      "candidate_preview": "\"\"\"Pattern 06 — cryptography.hazmat: SecureMessenger 클래스 + 파일 IO (복잡).\n\nintent: 디스크에 저장된 PEM 공개 키로 암호화하여 ciphertext 파일을 출력하고, 비밀 키로 복호.\nexpected migration target: ML-KEM-768 + AES-GCM, 파일 형식은 (kem_ct || nonce || aead_ct).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass SecureMessenger:\n    def __init",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1432,
+      "candidate_preview": "\"\"\"Pattern 06 — cryptography.hazmat: SecureMessenger 클래스 + 파일 IO (복잡).\n\nintent: 디스크에 저장된 PEM 공개 키로 암호화하여 ciphertext 파일을 출력하고, 비밀 키로 복호.\nexpected migration target: ML-KEM-768 + AES-GCM, 파일 형식은 (kem_ct || nonce || aead_ct).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass SecureMessenger:\n    def __init",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "MechanismNotSupportedError: b'\\xc1\\xf8M\\x93\\x82\\xce\\xebXc\\\\Z\\xbe\\xea\\x07!\\x04\\x89\\x90^\\x81\\x07x\\xe6e\\xb2X\\\\-&\\xa6;\\xb4R\\x89\\x96\\x03h\\x96f\\r\\xc8.\\xe4r_\\x982\\x80a\\x87W\\xf6;Lpi@=TG\\xe1U\\xa0\\x98bPt\\x84c\\xb5\\x12P\\xc43M\\x84\\xe5\\x0cd\\xe8\\xb9a2\\x84 \\xa5\\xc3\\x0b\\xb2[\\t\\x10\\xbaU\\xc7\\x9a\\x88\\'xg\\x06\\x18\\xc0\\x91\\x88\\xd3#I\\x19\\x13d6PR\\x00\\xfc\\xb4^*\\x80\\xecR\"`\\xd50+\\x1b\\x085\\x0b\\x0c\\xba\\xdbX\\xfcy\\xc3\\x8cL\\x02\\xc0\\xc5F\\x99,\\xbb\\xf5\\xe1\\xb6:\\xe8\\x94\\x00%\\x93\\xd2\\x89\\xbe\\xde\\x07}u\\xd3\\n\\xdaKsJYp\\xe7k\\'\\x075\\x19\\r\\xd6!U\\x12\\x84\\nHLm[d{\\xc1[\\x17e\\x1dk\\x8c\\x18\\x1b8h\\x91\\x1b\\xb8\\xed\\x80~\\xd0h\\xbb\\xb2;\\x92\\xfc\\xc2\\x16\\xe3Wl\\xeaji\\x1dqC\\xfd\\x99\\xb5sEQ|\\xc6Y\\xd67\\x07\\xca0\\x90Oa\\x8e\\xd1{9^\\xa1(\\x18\\xe52\\xd30\\xc2r\\xea\\xa8%4;~\\'O\\xa9\\xf2\\x8a\\xaf\\xa0g\\xbc\\xf7\\xc2\\xf1\\x0bB\\xbd\\xf4\\x97\\xd2#\\x05+\\x92\\xbdP\\xe3\\xb24\\xb4\\xae\\x8b\\x1b\\xac\\x94h\\xb0~\\x0c\\xc3\\xcfA\\x8a\\x88\\x03\\x04\\xba\\xd7v\\x95,~\\x88|{\\xca\\xb6d\\x10\\x889B\\xc3r\\x97\\x96\\x04\\xf1h\\xb6j\\x91^%\\xf2)AQ/\\xc1Ub\\x94p>\\x93\\xe76Q\\x85j\\x99Dd\\xb0\\xa9\\xc1\\xa2\\x95\\x0f\\x0f|r\\x8f<6\\xab\\xbb\\xc1]\\x18`\\xa9\\xc4\\xb0n\\xe2\\xbc\\xe6A7\\x01\\xc7k\\xebw\\xc4z\\x8a)M\\x93\\x90sa\\xb2ct4\\xd1\\x07U>@\\x99[\\xe1.P\\xf9\\x1f\\xc5B\"Bu\\xb9]\"p\\x03!R.\\xf3s\\xa2\\x06%\\x92\\x9cE<g\\xa8}\\x166~\\xa5\\xcc\\xb1\\xfc\\xa7$\\xe7cu\\xf5P\\x95i\\xa9\\xcds\"u(M\\xd8Z2L\\xfcU=\\x9b\\x17W&\\x85M\\xa0A\\x9d\\x02k^S\\x1c\\xc2\\'\\xcduq\\x81\\xd7\\xe9\\x1e_\\xbb\\xa6 u\\x19\\x867J\\xef\\x89\\x85\\xb2\\xd4$b\\x99g\\xcc\\x8b&\\xa1\\x18O\\xefR?\\xbd\\x04|\\x88f\\xaf\\xe5\\xbb\\x92#\\x83y\\xc1\\x97\\xa7\\r#n\\xd4\\x93%$\\xb1\\xbe_\\x01\\x1f\\x7f$~\\xd9\\xd4\\xc5\\xab\\xc1l\\x03\\x08\\x9e<u\\x7f\\x1aJ \\xbb\\x90g\\xff\\x18B|\\x99\\xa8\\x0b\\x87\\x0e\\x00\\x88a}\\xf7U\\xb9F\\x88V\\x08W\\xd7\\xd1p\\xab\\xab\\x84\\xc8\\xd6Q~\\x01\\xbf1\\xd6w\\x92`Z\\xf0s\\xc6~\\xb0\\xc9 3\"%L\\x06\\n\\xe7\\xb9\\xa5\\x05\\x94\\xc6\\x16\\xc3M\\x06\\x1a\\xbb\\x91\\xba\\xb4\\xe8i,\\x92\\x17\\xb9\\x92\\xb6\\xc6\\xa84\\xec\\xe0=\\xf5Xf\\xad8~\\xecRVd\\xf1k\\xed\\xe7\\xbb\\xb4\\xc9\\x01I)\\x08\\x93\\xd6\\x85;\\xd3\\xa7\\xba\\xc1\\xa6E\\xa4)ah_Q\\xe6\\x95\\x00\\xf0\\x06\\xf7\\x90?\\x13\\x06\\x82\\xfbS\\xc3\\xde\\xe7\\x89mDR\\x83\\x82\\x80\\xec`R\\x11\\xa6\\x92\\xc4\\xb2\\xc5X@W\\xfe%o\\\\I\\x8c\\x866\\x86\\xb3q\\xbc\\xa8gSU\\xd1\\xb8\\xbd\\xa7\\x13\\xab\\xd2\\xc9\\xa9(8H\\x979\\xa9\\xdcXX\\xc6\\x1a\\x08\\xd2\\x0b\\xb6\\x10c\\xc2\\x15\\n\\r\\'\\x135\\xd8\\xcc\\xe8\\xc9l\\xc9\\x87gY\\x8bu[\\x81\\x16g\\xec3\\xc09/\\xb4\\xd3b\\xae\\x90\\x96~3)5rpb\\x8a\\xa6\\xf1\\x99A:!\\xcf\\x0baA\\x95\\x97\\x0f\\xa5k\\xa4\\x12\\x1b[\\x84\\xa2M\\xb0\\xd1U]\\xf1\\x8f\\xa9 \\x8a}@X\\x0f\\nQnyO\\x9f2\\x98\\x80|\\x9f\\x07je*PFvD\\x04hTa\\x9b\\xdc\\xb1\\x85\\x8cN\\xe6\\xf6\\x855\\xab\\xc8l\\x08\\x14\\x1e\"\\x92M\\xf09\\xbb\\xe5\\x9aB\\x15\\xad\\xee\\xc44\\xb5Jvp\\x15\\xb4\\x0fyH\\xf1\\xc3\\x18G\\xba\\\\\\x8dq{\\x90\\x00\\xc7\\xa5J\\xc2\\xb9vh\\xbf\\xf0\\xb8\\xbaVa\\xbc\\x84\\xbf\\x16K;\\xcc\\x06d\\n%\\xa73\\xea\\x9fm\\xf9\\x915\\xeac\\x82\\xe3s}\\xcc7\\xa9\\xc4\\x16L\\xe7\\x92\\xb0\\t\\xb7\\x13h\\xba\\x91\\x81R\\xa6\\x121`#|t\\xa3\\x07-w&\\xe7;\\x15\\xa4\\x07\\x86\\x10&l\\xa7\\x04Z\\x19\\xcao\\xbdYNp\\xf8U\\xab2\\'\\xd6G]P\\xc3\\x9b\\x1f\\xf9q\\x7fz2Q%\\xba\\xc1<\\xcfm\\xe6\\x8asf\\x8f\\xc9\\xcc\\x94\\xf3\\x19\\xb7\\x08R2\\xb7\\n\\x93m\\xcbXdW\\xa6\\xa2\\xe1\\xcd\\xf7F\\xc9K\\x96\\x19S\\xd6\\x8a\\xf46\\xbb\\xa7\\x0b\\x9f\\xc7\\xb2\\xc5\\x904\\x8f\\xc9\\xb2\\xb8u\"X\\x8c\\x02\\xad\\xa3\\x06\\xb79<W\\xfd\\\\\\xa4\\xcb\\x13\\x0e\\'\\xec\\xber\\xca\\xb5\\x1dKK\\xae< \\x97b\\x00\\xff0,\\xd5\\x96H5X9?\\xa2i\\xc5c5?\"~\\xb7x\\x19(H\\x1dM\\xec\\xcd\\xfewQQ\\xe7_GA\\x1b\\x1b\\xc6x\\xfe\\x9aI\\xf1&\\xb4$\\xb1\\x8c\\xd9\\x02\\x93;1\\xb4\\x9e\\x02\\xf3\\xa2\\xc1 6\\x10r\\xf5\\xe2O\\xce\\xdaq\\xdba\\xf7W\\xbcM\\xc6\\x90\\x05%c2_\\x1f'",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "06",
+      "pattern_file": "06_cryptography_encrypt_complex.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1763,
+      "candidate_preview": "\"\"\"Pattern 06 — cryptography.hazmat: SecureMessenger 클래스 + 파일 IO (복잡).\n\nintent: 디스크에 저장된 PEM 공개 키로 암호화하여 ciphertext 파일을 출력하고, 비밀 키로 복호.\nexpected migration target: ML-KEM-768 + AES-GCM, 파일 형식은 (kem_ct || nonce || aead_ct).\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass SecureMessenger:\n    def __init",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1394,
+      "candidate_preview": "\"\"\"Pattern 07 — cryptography.hazmat: DocumentSigner 클래스 + 파일 IO (복잡).\n\nintent: 파일 단위 서명/검증. 서명은 별도 .sig 파일로 출력.\nexpected migration target: ML-DSA-65 기반 DocumentSigner.\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass DocumentSigner:\n    def __init__(self, private_key_path: Path | None = None, public_k",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 1394,
+      "candidate_preview": "\"\"\"Pattern 07 — cryptography.hazmat: DocumentSigner 클래스 + 파일 IO (복잡).\n\nintent: 파일 단위 서명/검증. 서명은 별도 .sig 파일로 출력.\nexpected migration target: ML-DSA-65 기반 DocumentSigner.\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass DocumentSigner:\n    def __init__(self, private_key_path: Path | None = None, public_k",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 1394,
+      "candidate_preview": "\"\"\"Pattern 07 — cryptography.hazmat: DocumentSigner 클래스 + 파일 IO (복잡).\n\nintent: 파일 단위 서명/검증. 서명은 별도 .sig 파일로 출력.\nexpected migration target: ML-DSA-65 기반 DocumentSigner.\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass DocumentSigner:\n    def __init__(self, private_key_path: Path | None = None, public_k",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1394,
+      "candidate_preview": "\"\"\"Pattern 07 — cryptography.hazmat: DocumentSigner 클래스 + 파일 IO (복잡).\n\nintent: 파일 단위 서명/검증. 서명은 별도 .sig 파일로 출력.\nexpected migration target: ML-DSA-65 기반 DocumentSigner.\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass DocumentSigner:\n    def __init__(self, private_key_path: Path | None = None, public_k",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "07",
+      "pattern_file": "07_cryptography_sign_complex.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1338,
+      "candidate_preview": "\"\"\"Pattern 07 — cryptography.hazmat: DocumentSigner 클래스 + 파일 IO (복잡).\n\nintent: 파일 단위 서명/검증. 서명은 별도 .sig 파일로 출력.\nexpected migration target: ML-DSA-65 기반 DocumentSigner.\n\"\"\"\nfrom pathlib import Path\nimport oqs\n\nclass DocumentSigner:\n    def __init__(self, private_key_path: Path | None = None, public_k",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.767,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_sig_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1440,
+      "candidate_preview": "\"\"\"Pattern 08 — cryptography.hazmat: SessionKeyExchange 클래스 + 파일 IO (복잡).\n\nintent: 송신자가 임의 세션 키를 ML-KEM으로 wrap하여 디스크 저장, 수신자가 unwrap하여\n세션 키를 디스크에 저장. 양측은 이후 AES-GCM으로 통신.\nexpected migration target: ML-KEM-768 기반 세션 키 교환 (encap/decap → shared secret 디스크 저장).\n\"\"\"\nimport os\nfrom pathlib import Path\nimp",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.__init__() got an unexpected keyword argument 'public_key'",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 1440,
+      "candidate_preview": "\"\"\"Pattern 08 — cryptography.hazmat: SessionKeyExchange 클래스 + 파일 IO (복잡).\n\nintent: 송신자가 임의 세션 키를 ML-KEM으로 wrap하여 디스크 저장, 수신자가 unwrap하여\n세션 키를 디스크에 저장. 양측은 이후 AES-GCM으로 통신.\nexpected migration target: ML-KEM-768 기반 세션 키 교환 (encap/decap → shared secret 디스크 저장).\n\"\"\"\nimport os\nfrom pathlib import Path\nimp",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.__init__() got an unexpected keyword argument 'public_key'",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 1433,
+      "candidate_preview": "\"\"\"Pattern 08 — cryptography.hazmat: SessionKeyExchange 클래스 + 파일 IO (복잡).\n\nintent: 송신자가 임의 세션 키를 ML-KEM으로 wrap하여 디스크 저장, 수신자가 unwrap하여\n세션 키를 디스크에 저장. 양측은 이후 AES-GCM으로 통신.\nexpected migration target: ML-KEM-768 기반 세션 키 교환 (encap/decap → shared secret 디스크 저장).\n\"\"\"\nimport os\nfrom pathlib import Path\nimp",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.__init__() got an unexpected keyword argument 'public_key'",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1433,
+      "candidate_preview": "\"\"\"Pattern 08 — cryptography.hazmat: SessionKeyExchange 클래스 + 파일 IO (복잡).\n\nintent: 송신자가 임의 세션 키를 ML-KEM으로 wrap하여 디스크 저장, 수신자가 unwrap하여\n세션 키를 디스크에 저장. 양측은 이후 AES-GCM으로 통신.\nexpected migration target: ML-KEM-768 기반 세션 키 교환 (encap/decap → shared secret 디스크 저장).\n\"\"\"\nimport os\nfrom pathlib import Path\nimp",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.__init__() got an unexpected keyword argument 'public_key'",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "08",
+      "pattern_file": "08_cryptography_kex_complex.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1451,
+      "candidate_preview": "\"\"\"Pattern 08 — cryptography.hazmat: SessionKeyExchange 클래스 + 파일 IO (복잡).\n\nintent: 송신자가 임의 세션 키를 ML-KEM으로 wrap하여 디스크 저장, 수신자가 unwrap하여\n세션 키를 디스크에 저장. 양측은 이후 AES-GCM으로 통신.\nexpected migration target: ML-KEM-768 기반 세션 키 교환 (encap/decap → shared secret 디스크 저장).\n\"\"\"\nimport os\nfrom pathlib import Path\nimp",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.__init__() got an unexpected keyword argument 'public_key'",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 589,
+      "candidate_preview": "\"\"\"Pattern 03 — OQS: ML-DSA 서명/검증.\n\ninput: PEM 인코딩된 키로 SHA-256 해시 서명 및 검증.\nexpected migration target: ML-DSA-65 (Dilithium3) 서명/검증.\n\"\"\"\nfrom Crypto.Hash import SHA256\nimport oqs\n\n\ndef sign(private_key_pem: bytes, message: bytes) -> bytes:\n    key = oqs.Signature(\"ML-DSA-65\")\n    key.generate_keypair",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 567,
+      "candidate_preview": "\"\"\"Pattern 03 — OQS: ML-DSA 서명/검증.\n\ninput: PEM 인코딩된 키로 SHA-256 해시 서명 및 검증.\nexpected migration target: ML-DSA-65 (Dilithium3) 서명/검증.\n\"\"\"\nfrom Crypto.Hash import SHA256\nimport oqs\n\n\ndef sign(private_key_pem: bytes, message: bytes) -> bytes:\n    key = oqs.Signature(\"ML-DSA-65\").generate_keypair(private",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 567,
+      "candidate_preview": "\"\"\"Pattern 03 — OQS: ML-DSA 서명/검증.\n\ninput: PEM 인코딩된 키로 SHA-256 해시 서명 및 검증.\nexpected migration target: ML-DSA-65 (Dilithium3) 서명/검증.\n\"\"\"\nfrom Crypto.Hash import SHA256\nimport oqs\n\n\ndef sign(private_key_pem: bytes, message: bytes) -> bytes:\n    key = oqs.Signature(\"ML-DSA-65\").generate_keypair(private",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 567,
+      "candidate_preview": "\"\"\"Pattern 03 — OQS: ML-DSA 서명/검증.\n\ninput: PEM 인코딩된 키로 SHA-256 해시 서명 및 검증.\nexpected migration target: ML-DSA-65 (Dilithium3) 서명/검증.\n\"\"\"\nfrom Crypto.Hash import SHA256\nimport oqs\n\n\ndef sign(private_key_pem: bytes, message: bytes) -> bytes:\n    key = oqs.Signature(\"ML-DSA-65\").generate_keypair(private",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "09",
+      "pattern_file": "09_pycryptodome_sign_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 591,
+      "candidate_preview": "\"\"\"Pattern 03 — OQS: ML-DSA 서명/검증.\n\ninput: PEM 인코딩된 키로 SHA-256 해시 서명 및 검증.\nexpected migration target: ML-DSA-65 (Dilithium3) 서명/검증.\n\"\"\"\nfrom Crypto.Hash import SHA256\nimport oqs\n\n\ndef sign(private_key_pem: bytes, message: bytes) -> bytes:\n    key = oqs.Signature(\"Dilithium3\")\n    key.generate_keypai",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: Signature.generate_keypair() takes 1 positional argument but 2 were given",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 518,
+      "candidate_preview": "\"\"\"Pattern 10 — PyCryptodome: ML-KEM 및 ML-DSA 키 쌍 생성.\n\nintent: 키 교환/암호화 용도 ML-KEM 키 생성 후 PEM 직렬화.\nexpected migration target: ML-KEM-768 키 쌍 생성.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair() -> tuple[bytes, bytes]:\n    \"\"\"반환: (private_pem, public_pem).\"\"\"\n    kem = KeyEncap",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 518,
+      "candidate_preview": "\"\"\"Pattern 10 — PyCryptodome: ML-KEM 및 ML-DSA 키 쌍 생성.\n\nintent: 키 교환/암호화 용도 ML-KEM 키 생성 후 PEM 직렬화.\nexpected migration target: ML-KEM-768 키 쌍 생성.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair() -> tuple[bytes, bytes]:\n    \"\"\"반환: (private_pem, public_pem).\"\"\"\n    kem = KeyEncap",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 518,
+      "candidate_preview": "\"\"\"Pattern 10 — PyCryptodome: ML-KEM 및 ML-DSA 키 쌍 생성.\n\nintent: 키 교환/암호화 용도 ML-KEM 키 생성 후 PEM 직렬화.\nexpected migration target: ML-KEM-768 키 쌍 생성.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair() -> tuple[bytes, bytes]:\n    \"\"\"반환: (private_pem, public_pem).\"\"\"\n    kem = KeyEncap",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 518,
+      "candidate_preview": "\"\"\"Pattern 10 — PyCryptodome: ML-KEM 및 ML-DSA 키 쌍 생성.\n\nintent: 키 교환/암호화 용도 ML-KEM 키 생성 후 PEM 직렬화.\nexpected migration target: ML-KEM-768 키 쌍 생성.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair() -> tuple[bytes, bytes]:\n    \"\"\"반환: (private_pem, public_pem).\"\"\"\n    kem = KeyEncap",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "10",
+      "pattern_file": "10_pycryptodome_keygen_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 518,
+      "candidate_preview": "\"\"\"Pattern 10 — PyCryptodome: ML-KEM 및 ML-DSA 키 쌍 생성.\n\nintent: 키 교환/암호화 용도 ML-KEM 키 생성 후 PEM 직렬화.\nexpected migration target: ML-KEM-768 키 쌍 생성.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef generate_keypair() -> tuple[bytes, bytes]:\n    \"\"\"반환: (private_pem, public_pem).\"\"\"\n    kem = KeyEncap",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 913,
+      "candidate_preview": "\"\"\"Pattern 11 — OQS: ML-KEM 암호화/복호화 및 ML-DSA 서명 검증.\n\nintent: ML-KEM으로 메시지 암호화 및 ML-DSA로 서명.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef encrypt_message(public_key: bytes, message: bytes) -> bytes:\n    kem = KeyEncapsulation(\"ML-KEM-768\")\n   ",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 1117,
+      "candidate_preview": "\"\"\"Pattern 11 — OQS: ML-KEM 암호화/복호화 및 ML-DSA 서명/검증.\n\nintent: ML-KEM으로 메시지 암호화 및 ML-DSA로 서명. PEM 키를 매번 import.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef encrypt_message(public_key: bytes, message: bytes) -> bytes:\n    kem = KeyEncapsulation",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "AttributeError: 'KeyEncapsulation' object has no attribute 'import_public_key'",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 913,
+      "candidate_preview": "\"\"\"Pattern 11 — OQS: ML-KEM 암호화/복호화 및 ML-DSA 서명 검증.\n\nintent: ML-KEM으로 메시지 암호화 및 ML-DSA로 서명.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef encrypt_message(public_key: bytes, message: bytes) -> bytes:\n    kem = KeyEncapsulation(\"ML-KEM-768\")\n   ",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1127,
+      "candidate_preview": "\"\"\"Pattern 11 — OQS: ML-KEM 암호화/복호화 및 ML-DSA 서명 검증.\n\nintent: ML-KEM으로 메시지 암호화 및 ML-DSA로 서명. PEM 키를 매번 import.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef encrypt_message(public_key: bytes, message: bytes) -> bytes:\n    kem = KeyEncapsulation",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "AttributeError: 'KeyEncapsulation' object has no attribute 'import_public_key'",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "11",
+      "pattern_file": "11_pycryptodome_encrypt_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 929,
+      "candidate_preview": "\"\"\"Pattern 11 — OQS: ML-KEM 암호화/복호화 및 ML-DSA 서명 검증.\n\nintent: ML-KEM으로 메시지 암호화 및 ML-DSA로 서명.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nfrom oqs import KeyEncapsulation, Signature\n\n\ndef encrypt_message(public_key: bytes, message: bytes) -> bytes:\n    kem = KeyEncapsulation(\"ML-KEM-768\")\n   ",
+      "L2_ast_ok": true,
+      "L2_ast_issues": [],
+      "L3_semantic_passed": false,
+      "L3_error": "TypeError: KeyEncapsulation.decap_secret() takes 2 positional arguments but 3 were given",
+      "L4_equivalence_score": 0.825,
+      "L4_equivalent": true,
+      "L4_mismatches": [
+        "uses_aesgcm: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1041,
+      "candidate_preview": "\"\"\"Pattern 12 — PyCryptodome: ML-KEM 기반 AES 세션 키 wrap.\n\nintent: 임의 AES 키 생성 후 ML-KEM으로 wrap, AES-GCM으로 메시지 암호화.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nimport os\nfrom oqs import KeyEncapsulation, Signature\n\nfrom Crypto.Cipher import AES\n\n\ndef wrap_and_encrypt(public_key: bytes, message:",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 1,
+      "llm_error": null,
+      "candidate_chars": 1134,
+      "candidate_preview": "\"\"\"Pattern 12 — PyCryptodome: ML-KEM 기반 AES 세션 키 wrap.\n\nintent: 임의 AES 키 생성 후 ML-KEM로 wrap, AES-GCM으로 메시지 암호화.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nimport os\nfrom oqs import KeyEncapsulation, Signature\nfrom Crypto.Cipher import AES\n\ndef wrap_and_encrypt(public_key: bytes, message: by",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 2,
+      "llm_error": null,
+      "candidate_chars": 1134,
+      "candidate_preview": "\"\"\"Pattern 12 — PyCryptodome: ML-KEM 기반 AES 세션 키 wrap.\n\nintent: 임의 AES 키 생성 후 ML-KEM로 wrap, AES-GCM으로 메시지 암호화.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nimport os\nfrom oqs import KeyEncapsulation, Signature\nfrom Crypto.Cipher import AES\n\ndef wrap_and_encrypt(public_key: bytes, message: by",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 3,
+      "llm_error": null,
+      "candidate_chars": 1045,
+      "candidate_preview": "\"\"\"Pattern 12 — PyCryptodome: ML-KEM 기반 AES 세션 키 wrap.\n\nintent: 임의 AES 키 생성 후 ML-KEM로 wrap, AES-GCM으로 메시지 암호화.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nimport os\nfrom oqs import KeyEncapsulation, Signature\n\nfrom Crypto.Cipher import AES\n\n\ndef wrap_and_encrypt(public_key: bytes, message: ",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "12",
+      "pattern_file": "12_pycryptodome_kex_simple.py",
+      "trial": 4,
+      "llm_error": null,
+      "candidate_chars": 1064,
+      "candidate_preview": "\"\"\"Pattern 12 — PyCryptodome: ML-KEM 기반 AES 세션 키 wrap.\n\nintent: 임의 AES 키 생성 후 ML-KEM으로 wrap, AES-GCM으로 메시지 암호화.\nexpected migration target: ML-KEM-768 + AES-GCM.\n\"\"\"\nimport os\nfrom oqs import KeyEncapsulation, Signature\nfrom Crypto.Cipher import AES\n\ndef wrap_and_encrypt(public_key: bytes, message: b",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "Signature(...) 인스턴스 생성 패턴 없음"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 1.0,
+      "L4_equivalent": true,
+      "L4_mismatches": []
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 0,
+      "llm_error": null,
+      "candidate_chars": 1195,
+      "candidate_preview": "\"\"\"Pattern 13 — PyCryptodome: KeyVault 클래스 + 환경 변수/파일 IO (복잡).\n\nintent: KEY_DIR 환경 변수에서 디렉토리 결정, 키 생성 후 PEM 파일로 저장. 로드 시 디스크에서 읽음.\nexpected migration target: ML-KEM-768 KeyVault. raw bytes로 저장.\n\"\"\"\nimport os\nfrom pathlib import Path\nimport oqs\n\nclass KeyVault:\n    def __init__(self) -> None:\n       ",
+      "L2_ast_ok": false,
+      "L2_ast_issues": [
+        "oqs.KeyEncapsulation 또는 oqs.Signature 미사용 — 마이그레이션 미적용"
+      ],
+      "L3_semantic_passed": false,
+      "L3_error": "AST 검증 실패로 skip",
+      "L4_equivalence_score": 0.3,
+      "L4_equivalent": false,
+      "L4_mismatches": [
+        "has_kem_instance: reference uses but candidate does not"
+      ]
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85370 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85370 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 2,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85360 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85360 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 3,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85349 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85349 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "13",
+      "pattern_file": "13_pycryptodome_keygen_complex.py",
+      "trial": 4,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85338 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85338 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 0,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85328 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85328 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85318 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85318 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 2,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85307 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85307 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 3,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85297 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85297 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "14",
+      "pattern_file": "14_pycryptodome_encrypt_complex.py",
+      "trial": 4,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\",\"details\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 0,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85276 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85276 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85266 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85266 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 2,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85255 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85255 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 3,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85245 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85245 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "15",
+      "pattern_file": "15_pycryptodome_sign_complex.py",
+      "trial": 4,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85235 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85235 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 0,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\",\"details\":\"Rate limit of 15 per 60s exceeded for UserByModelByMinute. Please wait 2 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 1,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85214 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85214 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 2,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85203 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85203 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 3,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85193 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85193 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    },
+    {
+      "pattern_id": "16",
+      "pattern_file": "16_pycryptodome_kex_complex.py",
+      "trial": 4,
+      "llm_error": "HTTP 429: {\"error\":{\"code\":\"RateLimitReached\",\"message\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85182 seconds before retrying.\",\"details\":\"Rate limit of 150 per 86400s exceeded for UserByModelByDay. Please wait 85182 seconds before retrying.\"}}",
+      "candidate_chars": 0,
+      "candidate_preview": "",
+      "L2_ast_ok": false,
+      "L3_semantic_passed": false,
+      "L4_equivalent": false
+    }
+  ]
+}

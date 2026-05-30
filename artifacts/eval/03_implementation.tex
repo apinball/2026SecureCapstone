@@ -1,0 +1,284 @@
+\section{설계 및 구현}
+\sloppy
+
+% 본 장에서는 먼저 단계적 TLS 전환 모델과 이를 집행하는 DevSecOps
+% 파이프라인 구조를 설계 관점에서 설명하고,
+% 이후 각 구성 요소의 구현 방식을 기술한다.
+
+\subsection{3단계 TLS 마이그레이션 모델}
+
+본 연구는 TLS 전환을 세 단계로 정의한다.
+각 단계는 nginx 설정 파일에서 \texttt{ssl\_ecdh\_curve} 및 \texttt{ssl\_protocols} 지시어를 통해 허용 알고리즘을 명시하며, 파이프라인의 Security Gate가 각 단계의 정책 준수 여부를 자동으로 판정한다.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{3단계 TLS 마이그레이션 모델}
+\label{tab:tls_stages}
+\begin{tabular}{p{3.5cm}p{4cm}p{1.8cm}p{3cm}}
+\toprule
+단계 & 키 교환 그룹 & 인증서 서명 & 특징 \\
+\midrule
+Stage~1 \newline (Classical ECC)
+  & X25519, P-256, P-384
+  & RSA-2048
+  & TLS 1.2/1.3, PQC 미사용 \\
+Stage~2 \newline (Hybrid PQC)
+  & X25519MLKEM768 \newline :X25519
+  & RSA-2048
+  & Hybrid, classical group 허용 \\
+Stage~3 \newline (Advanced Hybrid PQC)
+  & p521\_mlkem1024 \newline :p384\_mlkem768
+  & ML-DSA-65
+  & NIST L5, classical fallback 차단 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Stage~1은 기존 ECC 기반 TLS를 유지하면서 현재 암호 자산을 CBOM으로 기록하는 베이스라인 단계다.
+Stage~2는 X25519MLKEM768을 우선 허용하고, PQC 미지원 클라이언트와는 X25519로 협상되도록 classical group을 함께 허용하여 서비스 연속성을 보장한다.
+Stage~3는 p521\_mlkem1024:p384\_mlkem768 Hybrid 그룹만 허용하고 classical fallback을 차단하며, ML-DSA-65(Dilithium3) 기반 인증서로 서명한다.
+Stage~3는 순수 PQC-only TLS 표준화 및 구현체 지원이 아직 성숙하지 않은 점을 고려하여 Advanced Hybrid PQC (NIST L5) 구성으로 검증하는 실험적 확장 단계로 위치한다.
+
+\subsection{11-Step DevSecOps 파이프라인 구조}
+
+본 연구는 GitHub Actions 기반의 11-Step 파이프라인을 구현한다.
+파이프라인은 코드 푸시 또는 PR 이벤트 발생 시 자동으로 실행되며, 각 단계의 결과가 다음 단계의 입력이 되는 순차적 구조를 가진다.
+
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{코드 체크아웃}: 저장소 코드를 가져오고 실행 환경을 초기화한다.
+  \item \textbf{Stage 감지 및 TLS 설정 준비}: \texttt{nginx.conf}의 \texttt{ssl\_ecdh\_curve} 항목을 파싱하여 현재 Stage를 자동 감지하고, \texttt{workflow\_dispatch} 실행 시 지정된 Stage의 설정 파일을 복사한다.
+  \item \textbf{nginx 설정 자동 변경}: PQC 키 교환 그룹이 없는 Classical TLS 설정을 감지하면 Hybrid PQC 설정으로 자동 교체하고, 변경 사항을 커밋·푸시하여 이후 단계가 갱신된 설정을 기준으로 실행되도록 한다.
+  \item \textbf{고전 암호 탐지}: Semgrep의 \texttt{crypto-classical.yaml} 커스텀 룰로 코드베이스 전체에서 레거시 암호(RSA, MD5, SHA-1, DES) 사용을 탐지한다.
+  \item \textbf{정적 보안 분석}: Trivy(CVE + Misconfiguration), Gitleaks(시크릿), Semgrep(SAST)을 순차 실행하고 결과를 \texttt{scan-summary.json}으로 출력한다. Gitleaks 탐지 또는 고전 암호 탐지 건수 초과 시 파이프라인을 차단한다.
+  \item \textbf{TLS 암호 정책 검증 (Security Gate)}: Semgrep의 \texttt{tls-policy.yaml} 룰로 nginx 설정 디렉터리를 재검증하여 TLSv1.0/1.1, RC4, DES 사용 여부를 확인하고 위반 시 배포를 차단한다.
+  \item \textbf{PQC Nginx 도커 빌드 및 가동}: 자체 빌드 Dockerfile로 OQS-Nginx 컨테이너를 빌드하고 기동한다. healthcheck 통과 후 다음 단계로 진행한다.
+  \item \textbf{배포 후 동적 검증}: \texttt{tls\_check.sh}가 OQS-curl의 \texttt{--curves} 옵션으로 Stage별 허용 그룹을 지정하여 핸드셰이크 성공/실패를 확인하고, 해당 Stage의 정책 준수 여부를 판정한다.
+  \item \textbf{성능 검증 및 자동 롤백}: \texttt{perf\_check.sh}로 TLS 핸드셰이크 시간을 측정하고 임계치 초과 시 \texttt{rollback.sh}가 이전 Stage로 자동 복구한다.
+  \item \textbf{CBOM 생성 및 리포팅}: \texttt{cbom\_gen.py}로 CycloneDX~1.7 기반 CBOM을 생성하고, \texttt{cbom\_diff.py}로 이전 실행 CBOM과 비교하여 마이그레이션 진척도를 판정한다.
+  \item \textbf{결과 업로드 및 후처리}: 스캔·CBOM 아티팩트를 업로드하고, GitHub Actions Job Summary 및 PR 코멘트를 자동 게시한다. main 브랜치 실패 시 GitHub Issue를 자동 생성하고 Slack 알람을 발송한다.
+\end{enumerate}
+
+\subsection{OQS-Nginx 자체 빌드 기반 PQC TLS 서버}
+
+공개된 OQS-Nginx 이미지(\texttt{openquantumsafe/nginx:0.11.0})는 OpenSSL~1.1.1q 정적 빌드 기반으로, OQS-curl(\texttt{openquantumsafe/curl:0.11.0})이 사용하는 OpenSSL~3.4 + oqs-provider 라인과 group/sigalg code point가 달라 PQC 핸드셰이크가 구조적으로 실패한다.
+이를 해결하기 위해 멀티스테이지 Dockerfile을 신설하여 OpenSSL~3.4.0, liboqs~0.13.0, oqs-provider~0.9.0, nginx~1.27.2를 모두 소스 빌드하고 OQS-curl과 동일 라이브러리 라인으로 통일하였다.
+
+빌드 과정의 주요 설계 결정은 다음과 같다.
+liboqs 빌드 시 \texttt{OQS\_USE\_OPENSSL=OFF}, \texttt{OQS\_BUILD\_ONLY\_LIB=ON} 플래그로 OpenSSL KAT 충돌을 회피하였다.
+oqs-provider는 \texttt{openssl.cnf}에 \texttt{openssl\_conf = openssl\_init}을 명시하고 절대 경로로 모듈 경로를 지정하여 자동 로드를 보장하였다.
+Stage~3에서 oqs-provider~0.9.0이 PQC 키의 보안 강도를 0으로 보고하여 OpenSSL SECLEVEL 검증이 실패하는 문제는 \texttt{ssl\_ciphers DEFAULT:@SECLEVEL=0}으로 임시 완화하고 \texttt{ssl\_protocols TLSv1.3}와 그룹 화이트리스트로 부작용을 차단하였다.
+
+각 Stage의 TLS 설정은 \texttt{entrypoint.sh}가 \texttt{TLS\_STAGE} 환경변수를 읽어 해당 Stage의 nginx 설정 파일을 동적으로 교체함으로써 컨테이너 재빌드 없이 Stage 전환이 가능하다.
+
+\subsection{취약점 분석 및 TLS 정책 검증 모듈}
+
+보안 게이트는 역할이 명확히 분리된 세 가지 스캐너와 TLS 정책 검증 스크립트로 구성된다.
+
+\textbf{Trivy}는 \texttt{--scanners vuln,misconfig} 옵션으로 CVE 및 설정 오류를 동시에 스캔하고 HIGH·CRITICAL 기준으로 Pass/Fail을 판정한다.
+시크릿 탐지는 Gitleaks가 전담하므로 Trivy의 secret 스캐너는 사용하지 않는다.
+OQS 이미지 환경에서 불가피하게 발생하는 항목(root 유저, latest 태그)은 \texttt{.trivyignore}로 억제하였다.
+
+\textbf{Gitleaks}는 \texttt{gitleaks detect --source} 방식으로 현재 파일 상태의 시크릿을 탐지한다.
+\texttt{.gitleaks.toml} allowlist를 통해 PQC 알고리즘 명칭(X25519MLKEM768 등)의 오탐을 제거하였으며, exit code~0(pass), 1(fail), 2+(실행 오류)를 구분한다.
+
+\textbf{Semgrep}은 generic 모드로 동작하는 커스텀 룰 두 종류를 사용한다.
+\texttt{tls-policy.yaml}은 TLSv1.0/1.1 토큰과 RC4·DES 약한 암호 스위트를 탐지하도록 구성하였다.
+\texttt{crypto-classical.yaml}은 Python, Java 등 코드베이스 전체에서 레거시 암호 API 사용을 탐지한다.
+Nginx 설정 파일은 Semgrep 네이티브 미지원 언어이므로 generic 모드 사용에 따른 오탐 가능성이 존재하며, 핵심 TLS 정책 판정은 \texttt{tls\_check.sh}가 별도로 담당한다.
+
+\texttt{tls\_check.sh}는 OQS-curl의 \texttt{--curves} 옵션으로 Stage별 허용 그룹을 지정하여 핸드셰이크 성공/실패를 확인하고, Stage별 정책 준수 여부를 판정한다.
+PQC group 협상 성공 여부는 classical group만 지정한 클라이언트의 거부 여부와 교차 검증하여 확인한다.
+Stage별 통과 조건은 Table~\ref{tab:tls_policy}와 같다.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{Stage별 TLS 정책 판정 기준}
+\label{tab:tls_policy}
+\begin{tabular}{p{2.5cm}p{3.5cm}p{6cm}}
+\toprule
+단계 & 판정 항목 & 통과 조건 \\
+\midrule
+Stage~1 & ssl\_protocols, \newline ssl\_ecdh\_curve & classical 핸드셰이크 성공, PQC group 요청 시 거부 \\
+Stage~2 & ssl\_ecdh\_curve & X25519MLKEM768 핸드셰이크 성공, classical-only 클라이언트 연결 성공 \\
+Stage~3 & ssl\_ecdh\_curve & p521\_mlkem1024:p384\_mlkem768 핸드셰이크 성공, classical-only 클라이언트 거부 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{CBOM 생성, Diff, TLS 교차 검증}
+\label{sec:cbom}
+
+본 시스템의 CBOM 모듈은 \texttt{cbom\_gen.py}(생성)와 \texttt{cbom\_diff.py}(이력 비교·교차 검증) 두 스크립트로 구성되며, 정적 분석과 동적 분석을 결합하여 CycloneDX~1.7 CBOM을 생성한 뒤 이전 실행 CBOM과의 비교 및 실제 TLS 협상 결과와의 교차 검증까지를 단일 파이프라인 단계(Step~10)에서 수행한다.
+
+\subsubsection{정적·동적 분석 결합 기반 CBOM 생성.}
+
+\texttt{cbom\_gen.py}는 TLS termination 범위의 암호 자산을 식별하기 위해 5종 데이터 소스를 결합한다(Table~\ref{tab:cbom_sources}).
+정적 측면은 저장소의 nginx 설정 파일과 컨테이너 내부 \texttt{nginx -T} 출력을 함께 파싱하여 CI 자동 교체로 인한 로컬·실제 적용값의 불일치를 \texttt{notes}로 기록한다.
+동적 측면은 \texttt{docker exec}로 tls-tester 컨테이너의 \texttt{tls\_check.sh}를 호출해 핸드셰이크 결과(프로토콜·cipher·key group·판정)를 수집하고, pqc-proxy 컨테이너에서 \texttt{openssl x509 -text}로 서버 인증서를 조회하여 subject, issuer, 유효 기간, 서명 알고리즘, 공개키 정보를 추출한다.
+파이프라인의 외부 결과인 Semgrep \texttt{crypto-findings.json}은 CBOM 생성 직후 \texttt{securecapstone:classical\_crypto\_findings}와 \texttt{securecapstone:migration\_summary} properties로 후주입된다.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{CBOM 생성 시 결합되는 데이터 소스 및 매핑}
+\label{tab:cbom_sources}
+\begin{tabular}{p{3.4cm}p{2.6cm}p{5.4cm}}
+\toprule
+데이터 소스 & 분석 방식 & CBOM 매핑 \\
+\midrule
+\texttt{nginx-*.conf} \newline (Stage별 3종)
+  & 정적 (파일 파싱)
+  & configured 프로토콜·cipher·key exchange·인증서 경로 \\
+컨테이너 \texttt{nginx -T}
+  & 정적 (적용 설정)
+  & effective 설정, 로컬·적용값 불일치 \texttt{notes} \\
+\texttt{tls\_check.sh} \newline (tls-tester)
+  & 동적 (핸드셰이크)
+  & negotiated 프로토콜·cipher·key group, Stage 판정 \\
+\texttt{openssl x509} \newline (pqc-proxy)
+  & 동적 (인증서 조회)
+  & certificate·publicKey 컴포넌트, 서명 알고리즘 \\
+Semgrep \newline \texttt{crypto-findings.json}
+  & 외부 (코드 SAST)
+  & \texttt{classical\_crypto\_findings} property \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{컴포넌트 구조 및 의존 관계 그래프.}
+
+생성된 CBOM은 CycloneDX~1.7의 \texttt{cryptographic-asset} 타입을 사용하여 algorithm, certificate, related-crypto-material(public-key·private-key), protocol의 4개 자산 유형을 컴포넌트로 표현하고, \texttt{dependencies} 그래프로 자산 간 참조 관계를 명시한다(Fig.~\ref{fig:cbom_graph}).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2mm]},
+  every node/.style={font=\scriptsize},
+  app/.style={rectangle, draw, rounded corners=2pt, fill=gray!12,
+              inner sep=3pt, align=center, minimum height=6mm},
+  proto/.style={rectangle, draw, rounded corners=2pt, fill=blue!12,
+                inner sep=3pt, align=center, minimum height=6mm},
+  algo/.style={rectangle, draw, rounded corners=2pt, fill=green!12,
+               inner sep=3pt, align=center, minimum height=6mm,
+               minimum width=18mm},
+  composite/.style={rectangle, draw, rounded corners=2pt, fill=green!28,
+                    inner sep=3pt, align=center, minimum height=6mm,
+                    minimum width=22mm, line width=0.6pt},
+  cert/.style={rectangle, draw, rounded corners=2pt, fill=yellow!22,
+               inner sep=3pt, align=center, minimum height=6mm,
+               minimum width=18mm},
+  key/.style={rectangle, draw, rounded corners=2pt, fill=orange!22,
+              inner sep=3pt, align=center, minimum height=6mm,
+              minimum width=16mm},
+  edge/.style={->, semithick, draw=black!65}
+]
+% Level 0: Root
+\node[app] (root) at (0, 4) {TLS Termination Endpoint \textit{(application)}};
+
+% Level 1
+\node[proto] (proto) at (-3.0, 2.7) {TLSv1.3 \textit{(protocol)}};
+\node[cert]  (cert)  at ( 3.0, 2.7) {server cert \textit{(certificate)}};
+
+% Level 2 under protocol  ← 좌표 벌림 (간격 2.4 / 2.5)
+\node[algo]      (aes) at (-5.4, 1.1) {AES-256-GCM};
+\node[algo]      (sha) at (-3.0, 1.1) {SHA384};
+\node[composite] (kex) at (-0.5, 1.1) {p521\_mlkem1024};
+
+% Level 2 under certificate  ← 살짝 오른쪽으로 밀어서 kex와 분리
+\node[algo] (sig) at ( 2.0, 1.1) {ML-DSA-65};
+\node[key]  (pk)  at ( 4.4, 1.1) {publicKey};
+
+% Level 3  ← x25519/mlkem 사이 spacing 2.8로 확대
+\node[algo] (x25519) at (-1.9, -0.4) {ECDH-P-521};
+\node[algo] (mlkem)  at ( 0.9, -0.4) {ML-KEM-1024};
+\node[algo] (pkalg)  at ( 4.4, -0.4) {ML-DSA-65};
+
+% Edges
+\draw[edge] (root) -- (proto);
+\draw[edge] (root) -- (cert);
+\draw[edge] (proto) -- (aes);
+\draw[edge] (proto) -- (sha);
+\draw[edge] (proto) -- (kex);
+\draw[edge] (cert)  -- (sig);
+\draw[edge] (cert)  -- (pk);
+\draw[edge] (kex)   -- (x25519);
+\draw[edge] (kex)   -- (mlkem);
+\draw[edge] (pk)    -- (pkalg);
+\end{tikzpicture}
+\caption{Stage~3 CBOM 컴포넌트 의존 관계 예시. 하이브리드 키 교환 그룹 \texttt{p521\_mlkem1024}은 \texttt{decompose\_key\_exchange\_name}에서 \texttt{ECDH-P-521}과 \texttt{ML-KEM-1024}로 분해되어 별개 algorithm 컴포넌트로 등록된 뒤 부모(composite)에 \texttt{dependsOn}으로 묶인다. Stage~3은 \texttt{ssl\_ecdh\_curve}에 \texttt{p521\_mlkem1024:p384\_mlkem768} 두 hybrid 그룹을 등록하며, 본 그림은 우선순위 그룹만 시각화한다. 노드 색은 자산 유형을 구분한다(녹색: algorithm, 파란색: protocol, 노란색: certificate, 주황색: related-crypto-material). Stage~2에서는 키 교환 그룹이 \texttt{X25519MLKEM768}, 인증서 서명이 RSA-2048로 대체되며, Stage~1에서는 키 교환 그룹이 단일 \texttt{X25519}로 축소된다.}
+\label{fig:cbom_graph}
+\end{figure}
+
+구현상의 주요 결정은 다음과 같다.
+첫째, \texttt{X25519MLKEM768}과 같은 하이브리드 키 교환 그룹은 \texttt{decompose\_key\_exchange\_name} 함수에서 \texttt{X25519}와 \texttt{ML-KEM-768}로 분해되어 각각 별개 algorithm 컴포넌트로 등록되고, 부모(composite) 컴포넌트가 두 자식에 \texttt{dependsOn}으로 연결된다.
+이를 통해 하이브리드 그룹 내부의 classical·PQC 자산이 개별적으로 추적·비교 가능해진다.
+둘째, nginx 권장 사항에 따라 TLS~1.3에서 \texttt{ssl\_ciphers}가 명시되지 않으면 OpenSSL이 자동 협상하므로, 본 모듈은 RFC~8446 §B.4의 표준 5종을 자산으로 자동 주입하고 \texttt{securecapstone:source=rfc8446-default} property로 표기하여 CBOM 자산 목록의 완전성을 보장한다.
+셋째, ML-KEM·ML-DSA·AES·SHA-2/3·ChaCha20 등의 알고리즘 패밀리는 \texttt{infer\_algorithm\_properties}에서 자동 추론되어 CycloneDX~1.7의 native \texttt{algorithmFamily} 필드와 \texttt{securecapstone:algorithmFamily} 커스텀 property에 동시에 기록된다.
+
+\subsubsection{Stage 분류 및 3중 일관성 검증.}
+
+\texttt{classify\_stage} 함수는 협상된 key group 문자열을 하이브리드 PQC(\texttt{x25519\_mlkem*})와 강한 하이브리드·순수 PQC(\texttt{p\textbackslash d+\_mlkem*}, \texttt{mlkem\textbackslash d+}) 정규식으로 매칭하여 STAGE\_1\_CLASSICAL, STAGE\_2\_HYBRID\_PQC, STAGE\_3\_POST\_QUANTUM 중 하나로 자동 분류한다.
+정확한 판정을 위해 \texttt{cross\_validate} 함수가 (i)~사용자 요청 Stage(\texttt{--stage} 인자), (ii)~본 모듈의 협상 결과 기반 분류, (iii)~\texttt{tls\_check.sh}의 판정 결과 세 값을 비교하고, 하나라도 불일치하면 \texttt{securecapstone:validation.consistent=false}와 함께 warnings를 CBOM에 기록한다.
+이 3중 검증은 단순 자산 목록화를 넘어 ``요청한 정책이 실제로 적용되었는가''를 CBOM에 내장된 자기 점검 메커니즘으로 제공한다.
+
+\subsubsection{Diff 기반 마이그레이션 진척도 판정.}
+
+\texttt{cbom\_diff.py}의 \texttt{compare} 함수는 현재 실행 CBOM과 이전 실행 CBOM을 비교하여 BASELINE·IMPROVED·UNCHANGED·REGRESSED 네 상태로 진척도를 판정한다.
+비교 키는 Semgrep finding의 \texttt{(file, line, rule)} 튜플 집합이며, 척도는 \texttt{securecapstone:migration\_summary.manual\_action\_required} 카운트의 delta다.
+이전 CBOM이 없으면 BASELINE, delta가 양수이면 IMPROVED(레거시 자산 감소), 음수이면 REGRESSED, 0이면 UNCHANGED로 라벨링되며, 두 집합의 차집합으로 \texttt{resolved}(이전엔 있었으나 현재 없음)와 \texttt{new\_findings}(현재 신규)도 함께 산출하여 변화의 세부 내역을 보존한다.
+이전 실행 CBOM은 GitHub Actions API로 \texttt{cbom-stage\{N\}-run*} 형식의 아티팩트 중 최신을 자동 다운로드한다.
+본 척도는 코드 수준 PQC 마이그레이션 진척도(레거시 암호 API 사용 잔존량)를 1차 지표로 정의한 것이며, TLS 설정 자산의 Stage 전환 자체는 위 3중 일관성 검증과 후술할 TLS 교차 검증이 별개 layer로 추적한다.
+즉 Diff와 일관성 검증은 서로 다른 자산 도메인(application code vs.\ TLS termination 정책)을 분담한다.
+
+\subsubsection{TLS 스택과의 교차 검증.}
+
+CycloneDX 스키마 검증이 CBOM의 \emph{형식} 적합성을 보장한다면, \texttt{cbom\_diff.py}의 \texttt{verify\_tls\_against\_cbom} 함수는 CBOM의 \emph{내용} 정확성을 검증한다.
+구체적으로 \texttt{openssl s\_client -brief -connect proxy-server:443}을 \texttt{docker exec tls-tester} 경유로 실행하여 실제 협상된 프로토콜·cipher·key group을 수집한 뒤, 협상 결과에서 추출한 알고리즘 키워드 집합과 CBOM의 algorithm 컴포넌트 이름 집합을 정규화 후 완전 일치로 비교한다.
+CI 러너 호스트는 docker-compose 내부 DNS 해석이 불가하고 OQS provider도 부재하므로, tls-tester 컨테이너 내부에서 \texttt{openssl}을 실행하는 우회 구조를 사용한다.
+
+본 모듈은 Stage 정책의 실효성을 검증하기 위해 Stage별로 서로 다른 의도의 \texttt{-groups} 옵션을 자동 강제한다.
+Stage~2에서는 \texttt{-groups X25519MLKEM768}로 hybrid 그룹과의 협상 성공을 직접 확인하여 \emph{positive} 정책 준수를 검증한다.
+Stage~3에서는 \texttt{-groups mlkem1024}(standalone PQ)를 의도적으로 요청하여 \texttt{p521\_mlkem1024:p384\_mlkem768} hybrid-only 정책이 standalone PQ fallback을 거부하는지 \emph{negative} 검증한다.
+정책이 올바르게 적용된 Stage~3 환경에서 후자는 SKIPPED 상태로 \texttt{securecapstone:tls\_verification}에 기록되며, 이 SKIPPED는 실패가 아닌 \emph{policy enforcement의 증거}로 해석된다.
+이는 OpenSSL 기본 group 우선순위가 classical에 편향되어 PQC 환경에서도 classical로 fallback될 수 있는 위험을 두 방향(허용·차단) 모두에서 점검하기 위함이다.
+판정 결과는 PASS, MISMATCH, SKIPPED 중 하나로 \texttt{securecapstone:tls\_verification} property에 기록되며, \texttt{--fail-on-mismatch} 옵션을 통해 MISMATCH 발생 시 파이프라인이 차단된다.
+
+\subsubsection{스키마 검증 및 외부 호환성.}
+
+최종 CBOM은 CycloneDX CLI(\texttt{cyclonedx validate --input-version v1\_7 --fail-on-errors})로 1.7 스키마 적합성을 강제 검증한 뒤 \texttt{cbom-stage\{N\}-run\{run\_number\}} 형식의 영구 아티팩트로 누적되어 다음 실행의 baseline이 된다.
+CycloneDX는 OWASP Dependency-Track, \texttt{cdxgen}, \texttt{grype} 등 표준 SBOM 생태계 도구가 직접 소비할 수 있는 형식이므로, 본 CBOM은 폐쇄적 산출물이 아니라 외부 자산 관리 체계에 그대로 통합 가능한 표준 호환 증거 자료로 기능한다.
+결과적으로 CBOM은 정적·동적 자산 식별, 3중 일관성 검증, 진척도 자동 판정, 실 TLS 스택 교차 검증, 스키마 적합성 검증의 다섯 층으로 구성된 증거 체계로서 Stage 전환 전후 암호 자산의 변화와 회귀를 매 파이프라인 실행에서 객관적으로 증명할 수 있는 구조를 제공한다.
+
+\subsection{성능 검증 및 자동 롤백}
+
+\texttt{perf\_check.sh}는 TLS 핸드셰이크 시간을 반복 측정하고 Stage~1 baseline 아티팩트와 비교하여 성능 저하 여부를 판정한다.
+Stage~1이 아닌 경우 이전 파이프라인 실행에서 저장된 baseline 아티팩트를 다운로드하여 상대적 오버헤드를 계산한다.
+측정값은 반복 수행 후 중앙값을 대표값으로 사용하며, 90th percentile과 실패율을 함께 기록하여 파이프라인 환경의 일시적 지연 영향을 완화한다.
+
+\texttt{rollback.sh}는 \texttt{perf\_check.sh}의 판정 결과를 입력받아 임계치 초과 시 현재 Stage에서 이전 Stage로의 자동 롤백을 수행한다.
+임계값은 운영 환경에 따라 조정 가능한 정책 예시로 제공되며, 본 연구에서는 Stage~1 baseline 대비 상대 임계치를 기준으로 판정한다.
+
+\subsection{AI 기반 레거시 코드 마이그레이션}
+
+본 모듈은 PQC 전환 자동화 파이프라인의 확장 모듈로, 코드베이스 내 레거시 암호 사용을 LLM으로 자동 전환하는 4단계 흐름으로 구성된다.
+
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{탐지}: Semgrep \texttt{crypto-classical.yaml}로 레거시 암호 사용 파일과 위치를 식별하고 \texttt{crypto-findings.json}으로 출력한다.
+  \item \textbf{LLM 변환}: GitHub Models API(\texttt{gpt-4o-mini})를 통해 탐지된 파일의 RSA 코드를 ML-KEM/ML-DSA 기반 oqs-python 코드로 자동 변환한다. 프롬프트는 API 시그니처, 마이그레이션 규칙, 출력 형식을 명시한 instruction으로 구성된다.
+  \item \textbf{검증}: AST 기반 정적 검증으로 oqs API 사용 여부와 클래스 직접 호출 등 구조적 오류를 탐지한다.
+  \item \textbf{PR 생성}: 검증을 통과한 코드를 신규 브랜치에 커밋하고 \texttt{ai-generated} 라벨과 함께 PR을 자동 생성하여 사람의 최종 검토를 유도한다.
+\end{enumerate}
+
+본 구현의 자동 PR 생성 단계에서는 AST 기반 정적 검증을 우선 적용하며, 의미적 실행 검증은 4장에서 별도 평가 하네스를 통해 그 필요성을 정량적으로 분석한다.
+본 모듈은 \texttt{ai-migration.yml} 워크플로우를 통해 수동 실행되며, 메인 파이프라인과 분리하여 비용·노이즈를 격리한다.
+
+\subsection{매트릭스 CI 기반 회귀 감지}
+
+메인 파이프라인(\texttt{devsecops-pipeline.yml})은 \texttt{workflow\_dispatch} 실행 시 지정 Stage로 동작하지만, 기본 push/PR 트리거에서는 설정 파일에서 감지된 Stage로 동작한다.
+이 구조는 nginx 관련 파일 변경이 Stage~2/3에서 유발하는 회귀를 PR 시점에 자동으로 감지하지 못하는 공백을 만든다.
+
+\texttt{tls-stage-matrix.yml}은 이 공백을 보완하기 위해 nginx, tester, \texttt{tls\_check.sh} 등 관련 파일 변경 시 Stage~2와 Stage~3를 병렬로 검증하는 매트릭스 워크플로우다.
+각 Stage에 대해 OQS-Nginx 빌드·기동·healthcheck·\texttt{tls\_check.sh} 실행을 수행하며, 어느 한 Stage라도 실패하면 CI 상태를 실패로 표시하여 PR 머지 전 회귀를 확인할 수 있게 한다.
+이를 통해 Stage~3 회귀가 PR 시점에 즉시 감지되어 머지 후 hotfix 비용을 줄일 수 있다.

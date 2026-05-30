@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk ls *)",
+      "Bash(rtk git *)",
+      "Bash(rtk gh *)",
+      "Bash(python ../../../policy/cbom_diff.py --current stage1_cbom.json --out s1_result.json)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('s1_result.json'\\)\\); props=[p for p in d.get\\('properties',[]\\) if 'migration_progress' in p.get\\('name',''\\)]; print\\(json.dumps\\([{p['name']:json.loads\\(p['value']\\)} for p in props], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python ../../../policy/cbom_diff.py --current stage1_cbom.json --previous nonexistent.json --out s1_result.json)",
+      "Bash(python -c ' *)",
+      "Bash(export PYTHONUTF8=1)"
+    ]
+  }
+}

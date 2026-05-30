@@ -1,0 +1,200 @@
+\section{평가}
+
+\subsection{평가 설계 및 질문}
+
+본 평가는 세 가지 독립적인 측면에서 제안 시스템을 검증한다.
+평가~A는 PQC 도구 체인 통합 과정에서 발생하는 인프라 수준 함정을 카탈로그화하고, 표준 보안 도구의 사전 탐지 가능 여부를 분석한다.
+평가~B는 LLM 기반 레거시 코드 마이그레이션의 정확도를 정량적으로 측정하고, 검증 계층별 역할을 분리 분석한다.
+평가~C는 제안 파이프라인이 평가~A·B에서 확인된 함정에 어떤 차단·감지 효과를 가지는지 측정한다.
+
+각 평가에서 답하는 질문은 다음과 같다.
+
+\begin{itemize}
+  \item \textbf{Q1} (평가~A): PQC 도구 체인 통합 시 어떤 종류의 함정이 발생하며, 표준 SCA/SAST/SBOM 도구는 이를 정적·SBOM 기반으로 사전 탐지할 수 있는가?
+  \item \textbf{Q2} (평가~B): LLM 기반 RSA\textrightarrow ML-KEM/ML-DSA 코드 마이그레이션은 어느 검증 계층에서 실패하며, 정적 AST 검증과 의미적 실행 검증은 어떤 실패 유형을 각각 차단하는가?
+  \item \textbf{Q3} (평가~C): 제안 파이프라인은 표준 도구가 사전 탐지하지 못하는 함정 6종을 얼마나 차단·감지하는가?
+  \item \textbf{Q4} (평가~C): LLM 단독 대비 다층 검증 적용 시 실패 코드의 production 전달 위험은 얼마나 감소하는가?
+\end{itemize}
+
+\subsection{실험 환경}
+
+\textbf{파이프라인 실행 환경}은 GitHub Actions ubuntu-latest 러너를 사용한다.
+OQS-Nginx 서버는 OpenSSL~3.4.0, liboqs~0.13.0, oqs-provider~0.9.0, nginx~1.27.2 소스 빌드 기반이며, TLS 검증 클라이언트는 OQS-curl(\texttt{openquantumsafe/curl:0.11.0})을 사용한다.
+
+\textbf{LLM 마이그레이션 평가 환경}은 Windows~10 Pro, Docker Desktop, \texttt{python:3.11-slim} 기반 컨테이너에서 수행하였다.
+liboqs~0.14.0, liboqs-python~0.14.1을 사용하며, LLM 엔드포인트는 GitHub Models API(\texttt{gpt-4o-mini}, temperature=0)다.
+측정 시점은 2026-05-08이며, 총 80 trial(16 패턴 $\times$ k=5)을 실행하였다.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{실험 환경 및 도구 버전}
+\label{tab:env}
+\begin{tabular}{ll}
+\toprule
+구성 요소 & 버전 \\
+\midrule
+OpenSSL & 3.4.0 (소스 빌드) \\
+liboqs (서버) & 0.13.0 \\
+liboqs (평가 하네스) & 0.14.0 \\
+oqs-provider & 0.9.0 \\
+nginx & 1.27.2 \\
+Trivy & 0.69.3 \\
+Semgrep & 1.156.0 \\
+Gitleaks & 8.21.2 \\
+LLM 모델 & gpt-4o-mini (temperature=0) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{평가 A: PQC 도구 체인 함정 카탈로그}
+
+본 연구의 OQS 스택 통합 과정에서 발생한 인프라 수준 함정 6종을 트리거·증상·원인·방어책 단위로 구조화하였다.
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{PQC 도구 체인 함정 6종 카탈로그}
+\label{tab:trap_catalog}
+\begin{tabular}{p{0.5cm}p{3cm}p{4.5cm}p{4cm}}
+\toprule
+ID & 함정 & 증상 & 방어책 \\
+\midrule
+F-1 & oqs-provider 버전 비대칭 & TLS 1.3 핸드셰이크 \texttt{alert 552} & 자체 빌드로 라이브러리 라인 통일 \\
+F-2 & OpenSSL 1.1.1 $\leftrightarrow$ 3.x OID 불일치 & \texttt{SSL\_CTX\_use\_certificate failed} & cert-builder를 nginx와 동일 라인으로 통일 \\
+F-3 & ML-KEM IETF code point 충돌 & nginx 파싱 통과, 핸드셰이크 group 매칭 0 & 동일 라이브러리 라인 통일 \\
+F-4 & PQ key strength 0 보고 & \texttt{ee key too small (SECLEVEL)} & \texttt{@SECLEVEL=0} + TLSv1.3 + group whitelist \\
+F-5 & Docker 이미지 태그/빌드 재현성 문제 & 이전 CI 통과 이미지 조합이 이후 재구성 시 실패 & 자체 빌드로 외부 이미지 태그 의존 제거 \\
+F-6 & standalone PQ group 미협상 & nginx 기동 정상, 실제 핸드셰이크 실패 & hybrid group으로 회귀 + 매트릭스 CI 감지 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+표준 보안 도구의 사전 탐지 가능 여부를 분석한 결과, Trivy(SCA), Semgrep(SAST), CycloneDX CBOM 중 어느 도구도 6종 함정을 정적·SBOM 기반으로 사전 탐지하지 못하였다(0/6).
+이는 표준 도구가 알려진 CVE·설정 오류·암호 자산 목록화에 집중하며, OQS 스택의 라이브러리 라인 비대칭이나 code point 불일치와 같은 통합 수준 함정은 사전 탐지 범위 밖임을 의미한다.
+
+\subsection{평가 B: LLM 기반 코드 마이그레이션 정확도}
+
+\subsubsection{평가 설계}
+
+입력 패턴은 라이브러리(cryptography.hazmat, PyCryptodome) $\times$ 사용 케이스(keygen, encrypt, sign, kex) $\times$ 복잡도(simple, complex)의 직교 설계 N=16으로 구성하였다.
+각 패턴에 대해 RSA에서 ML-KEM-768/ML-DSA-65(oqs-python) 기반 코드로의 변환을 gpt-4o-mini에 요청하고, 4단계 검증 계층으로 결과를 측정하였다.
+
+4단계 검증 계층(L1\textasciitilde L4)은 다음과 같이 정의한다.
+L1은 LLM API 응답 수신 여부, L2는 AST 기반 정적 검증(oqs API 사용 여부, 인스턴스 생성 패턴, 클래스 직접 호출 금지), L3는 패턴별 round-trip 의미적 실행 검증, L4는 reference와 candidate의 AST feature 가중 평균 동등성 검증(임계값 0.8)이다.
+
+하네스 sanity check로 정답 16개를 candidate로 입력 시 L2/L3/L4 모두 16/16 통과, 원본 RSA 코드 입력 시 0/16으로 false positive/negative 0건을 확인하였다.
+
+\subsubsection{다층 ablation 결과}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{4단계 검증 계층별 통과율 (총 80 trial)}
+\label{tab:llm_ablation}
+\begin{tabular}{llll}
+\toprule
+계층 & 통과 / 80 & 전체 비율 & 응답 55건 기준 \\
+\midrule
+L1 (LLM 응답 수신) & 55 & 68.8\% & 100\% \\
+L2 (AST 검증) & 24 & 30.0\% & 43.6\% \\
+L3 (의미적 실행 검증) & 0 & 0.0\% & 0.0\% \\
+L4 (동등성 검증) & 40 & 50.0\% & 72.7\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+응답을 받은 55 trial 모두 어딘가에서 실패하여 의미적으로 정확한 코드를 생산한 경우는 0건이었다.
+L4 통과율이 L3보다 높다는 점은 AST feature 수준의 구조적 유사성이 실제 실행 가능성을 보장하지 않음을 보여준다.
+
+\subsubsection{실패 모드 taxonomy}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{LLM 실패 모드 7종 및 차단 계층}
+\label{tab:llm_taxonomy}
+\begin{tabular}{p{5cm}ll}
+\toprule
+실패 모드 & 빈도 & 차단 계층 \\
+\midrule
+missing\_instance\_construction & 20 (36.4\%) & L2 \\
+wrong\_arg\_count & 16 (29.1\%) & L3 \\
+no\_migration & 6 (10.9\%) & L2 \\
+class\_direct\_call & 5 (9.1\%) & L2 \\
+wrong\_kwarg & 5 (9.1\%) & L3 \\
+method\_hallucination & 2 (3.6\%) & L3 \\
+algorithm\_name\_hallucination & 1 (1.8\%) & L3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+L2와 L3가 차단하는 실패 모드 카테고리의 overlap은 0이다.
+\texttt{wrong\_arg\_count}, \texttt{wrong\_kwarg}, \texttt{method\_hallucination}, \texttt{algorithm\_name\_hallucination}은 100\% L3에서만, \texttt{missing\_instance\_construction}, \texttt{no\_migration}, \texttt{class\_direct\_call}은 100\% L2에서 차단된다.
+따라서 정적 AST 검증 단독으로는 시그니처 환각 24건(44\%)을 차단하지 못하며, 의미적 실행 검증을 추가해야 이를 차단할 수 있다.
+
+\subsection{평가 C: 파이프라인의 함정 차단 및 감지 효과}
+
+\subsubsection{인프라 함정에 대한 파이프라인 효과}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{함정 6종에 대한 파이프라인 layer별 효과}
+\label{tab:pipeline_effect}
+\begin{tabular}{p{0.5cm}p{3cm}ccc}
+\toprule
+ID & 함정 & 표준 도구 & 자체 빌드 & 매트릭스 CI \\
+\midrule
+F-1 & sigalg drift & $\times$ & $\checkmark$ 예방 & $\checkmark$ 감지 \\
+F-2 & OID mismatch & $\times$ & $\checkmark$ 예방 & $\checkmark$ 감지 \\
+F-3 & group code point & $\times$ & $\checkmark$ 예방 & $\checkmark$ 감지 \\
+F-4 & SECLEVEL 거부 & $\times$ & $\checkmark$ 예방 & $\checkmark$ 감지 \\
+F-5 & 이미지 태그 재현성 & $\times$ & $\checkmark$ 예방 & $\checkmark$ 감지 \\
+F-6 & standalone 미협상 & $\times$ & --- & $\checkmark$ 감지 \\
+\midrule
+\textbf{합계} & & \textbf{0/6} & \textbf{5/6} & \textbf{6/6} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+자체 빌드는 6종 함정 중 5개를 사전 예방하고, 매트릭스 CI는 6종 모두를 런타임에서 감지한다.
+표준 SCA/SAST/SBOM은 6종 어느 것도 정적·SBOM 기반으로 사전 탐지하지 못한다(0/6).
+F-6(standalone PQ group 미협상)은 자체 빌드로도 예방 불가이며 hybrid group 회귀와 매트릭스 CI 감지로 대응한다.
+
+\subsubsection{LLM 다층 방어 효과}
+
+\begin{table}[htbp]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\caption{검증 계층 적용 시나리오별 실패 코드 전달 위험}
+\label{tab:crash_risk}
+\begin{tabular}{lll}
+\toprule
+시나리오 & 통과 trial & 통과 코드의 런타임 실패 위험 \\
+\midrule
+① 검증 없음 (LLM 출력 직접 적용) & 55 & 100\% \\
+② AST 검증만 (L2) & 24 & 100\% \\
+③ AST + 의미적 검증 (L2 + L3) & 0 & 해당 없음 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+AST와 의미적 실행 검증을 모두 적용한 경우, 본 평가에서는 production 단계로 전달되는 코드가 0건이 되어 실패 코드의 전달을 차단하였다.
+이는 LLM 마이그레이션이 성공적으로 완료되었음을 의미하는 것이 아니라, 현재 모델 출력이 의미적 검증을 통과하지 못해 위험 코드가 배포 단계로 전달되지 않았음을 의미한다.
+
+\subsubsection{성능 검증 결과}
+
+Stage~2 환경에서 TLS 핸드셰이크 시간을 30회 측정한 결과, 중앙값 44.575ms, 실패율 0\%로 절대 임계치(3,000ms)를 통과하였다.
+상대 임계치 판정은 Stage~1 baseline 아티팩트를 기준으로 수행되도록 설계되며, 본 실험에서는 강제 실패 조건(\texttt{PERF\_FORCE\_FAIL=1})을 통해 \texttt{rollback.sh}가 롤백 전용 브랜치와 PR을 생성하는 경로를 검증하였다.
+
+\subsection{논의}
+
+평가~A와 평가~B는 PQC 전환 과정의 함정이 인프라 통합 수준과 코드 마이그레이션 수준에서 각각 발생하며, 두 층 모두 표준 도구 단독으로는 대응하기 어렵다는 것을 보여준다.
+평가~C는 자체 빌드(5/6 예방)와 매트릭스 CI(6/6 감지)의 조합이 인프라 함정에 대한 표준 도구의 사각지대를 메우고, AST + 의미적 검증의 다층 구조가 실패 코드의 production 전달을 차단함을 정량적으로 입증한다.
+
+본 평가의 범위와 해석상 유의점은 다음과 같다.
+인프라 함정 카탈로그는 N=1 프로젝트의 경험적 사례이므로 통계적 일반화에는 한계가 있다.
+LLM 평가는 단일 모델(gpt-4o-mini)과 합성 패턴 N=16만을 대상으로 하며, 더 큰 모델이나 실제 OSS 코드에서의 결과는 다를 수 있다.
+성능 측정은 GitHub Actions 러너와 Docker 환경에서 수행하였으므로 절대 성능값보다 동일 환경 내 상대 비교로 해석해야 한다.
+상세 한계 및 향후 연구 방향은 5장에서 논의한다.

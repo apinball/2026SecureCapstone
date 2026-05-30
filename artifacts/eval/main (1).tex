@@ -1,0 +1,44 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage{kotex}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{makecell}
+\usepackage{tabularx}
+\usepackage{float}
+
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+
+% --- Figures/diagrams ---
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta,positioning,fit}
+\usepackage{enumitem}
+
+\usepackage[hidelinks]{hyperref}
+
+% Tip: for ePrint it's common to show a month/year (or keep \today for a living draft).
+\date{May 2026}
+
+\begin{document}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\topfraction}{0.9}
+
+\input{00_abstract}
+% --- Main content ---
+\input{01_introduction}
+\input{02_related_work}
+\input{03_implementation}
+\input{04_evaluation}
+\input{05_conclusion}
+
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}

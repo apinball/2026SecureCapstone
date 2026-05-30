@@ -1,0 +1,55 @@
+{
+  "results": [
+    {
+      "id": "S1",
+      "scenario": "First run (no previous CBOM)",
+      "expected": "BASELINE",
+      "actual": "BASELINE",
+      "delta": 0,
+      "match": "PASS"
+    },
+    {
+      "id": "S2",
+      "scenario": "Stage 1 -> Stage 2 transition",
+      "expected": "IMPROVED",
+      "actual": "IMPROVED",
+      "delta": 3,
+      "match": "PASS"
+    },
+    {
+      "id": "S3",
+      "scenario": "Stage 2 -> Stage 3 transition",
+      "expected": "IMPROVED",
+      "actual": "IMPROVED",
+      "delta": 2,
+      "match": "PASS"
+    },
+    {
+      "id": "S4",
+      "scenario": "Stage 3 -> Stage 2 forced regression",
+      "expected": "REGRESSED",
+      "actual": "REGRESSED",
+      "delta": -2,
+      "match": "PASS"
+    },
+    {
+      "id": "S5",
+      "scenario": "Same stage re-run",
+      "expected": "UNCHANGED",
+      "actual": "UNCHANGED",
+      "delta": 0,
+      "match": "PASS"
+    },
+    {
+      "id": "S6",
+      "scenario": "Code-only change (no algorithm asset)",
+      "expected": "UNCHANGED",
+      "actual": "UNCHANGED",
+      "delta": 0,
+      "match": "PASS"
+    }
+  ],
+  "accuracy_n": 6,
+  "accuracy_total": 6,
+  "accuracy_str": "6/6"
+}

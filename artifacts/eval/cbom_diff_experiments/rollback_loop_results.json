@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "id": "M1",
+      "desc": "Commit message includes [skip ci] marker",
+      "pattern": "\\[skip ci\\]",
+      "found": true,
+      "rationale": "GitHub Actions skips workflow runs for commits with [skip ci] in the message",
+      "match": "PASS"
+    },
+    {
+      "id": "M2",
+      "desc": "Empty-diff guard skips commit when no change",
+      "pattern": "git diff --cached --quiet",
+      "found": true,
+      "rationale": "Prevents recursive rollback when nginx.conf already matches the rollback target",
+      "match": "PASS"
+    },
+    {
+      "id": "M3",
+      "desc": "Stage 1 short-circuit (cannot rollback further)",
+      "pattern": "STAGE.*-eq 1",
+      "found": true,
+      "rationale": "Stage 1 has no previous stage to roll back to, so the script exits early",
+      "match": "PASS"
+    }
+  ],
+  "pass_n": 3,
+  "pass_total": 3,
+  "loop_prevention_status": "PASS"
+}

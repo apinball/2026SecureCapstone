@@ -1,18 +1,18 @@
 {
-  "stage": "3",
-  "run_number": "370",
-  "timestamp": "2026-05-28T12:36:54Z",
+  "stage": "1",
+  "run_number": "371",
+  "timestamp": "2026-05-30T10:21:54Z",
   "commit": "841473b597373faba860ad59acac20f38a35d9b5",
   "branch": "main",
   "scans": {
-    "trivy": "pass",
-    "gitleaks": "pass",
-    "semgrep": "pass",
-    "tls_check": "pass"
+    "trivy": "unknown",
+    "gitleaks": "unknown",
+    "semgrep": "unknown",
+    "tls_check": "unknown"
   },
   "findings": 0,
   "cbom": {
     "manual_action_required": "0",
-    "status": "UNCHANGED"
+    "status": "BASELINE"
   }
 }

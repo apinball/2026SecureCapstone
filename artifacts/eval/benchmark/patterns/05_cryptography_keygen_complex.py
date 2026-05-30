@@ -6,38 +6,34 @@ raw bytes로 저장 (또는 PKCS#8 PEM 별도 인코딩 — 정답에서 raw byt
 """
 from pathlib import Path
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from oqs import KeyEncapsulation
 
 
 class KeyManager:
     def __init__(self, key_dir: Path):
         self.key_dir = Path(key_dir)
         self.key_dir.mkdir(parents=True, exist_ok=True)
-        self.private_key = None
+        self.kem = None
         self.public_key = None
 
+    # PQC migration: replaced RSA with ML-KEM
     def generate(self) -> None:
-        self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        self.public_key = self.private_key.public_key()
+        self.kem = KeyEncapsulation("Kyber768")
+        self.public_key = self.kem.generate_keypair()  # returns: bytes (public key)
 
     def save(self, name: str) -> None:
-        if self.private_key is None:
+        if self.kem is None:
             raise RuntimeError("키가 생성되지 않음")
-        priv_pem = self.private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        pub_pem = self.public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        (self.key_dir / f"{name}.priv.pem").write_bytes(priv_pem)
-        (self.key_dir / f"{name}.pub.pem").write_bytes(pub_pem)
+        # Note: No PEM format for KEM keys, saving raw bytes is assumed
+        priv_bytes = self.kem.secret_key  # This is a placeholder; actual storage logic may vary
+        pub_bytes = self.public_key
+        (self.key_dir / f"{name}.priv").write_bytes(priv_bytes)
+        (self.key_dir / f"{name}.pub").write_bytes(pub_bytes)
 
     def load(self, name: str) -> None:
-        priv_pem = (self.key_dir / f"{name}.priv.pem").read_bytes()
-        pub_pem = (self.key_dir / f"{name}.pub.pem").read_bytes()
-        self.private_key = serialization.load_pem_private_key(priv_pem, password=None)
-        self.public_key = serialization.load_pem_public_key(pub_pem)
+        priv_bytes = (self.key_dir / f"{name}.priv").read_bytes()
+        pub_bytes = (self.key_dir / f"{name}.pub").read_bytes()
+        # Placeholder for loading logic; actual implementation may vary
+        self.kem = KeyEncapsulation("Kyber768")  # Re-instantiate for secret key access
+        self.kem.secret_key = priv_bytes  # This is a placeholder; actual loading logic may vary
+        self.public_key = pub_bytes

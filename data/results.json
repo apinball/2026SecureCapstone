@@ -1,9 +1,9 @@
 {
   "stage": "2",
-  "run_number": "378",
-  "timestamp": "2026-05-31T11:21:26Z",
-  "commit": "841473b597373faba860ad59acac20f38a35d9b5",
-  "branch": "main",
+  "run_number": "380",
+  "timestamp": "2026-06-02T11:27:00Z",
+  "commit": "d72381a1ccfe678aef704986bc6c5e87500c2766",
+  "branch": "develop",
   "scans": {
     "trivy": "pass",
     "gitleaks": "pass",

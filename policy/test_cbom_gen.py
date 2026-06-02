@@ -12,7 +12,9 @@ from cbom_gen import (
     _render_static_notes,
     add_component,
     build_algorithm_component,
+    classify_stage,
     convert_snapshot_to_cyclonedx,
+    dedupe_keep_order,
     parse_cert_info,
     resolve_ec_family_from_oid,
     resolve_rsa_family_from_oid,
@@ -548,6 +550,99 @@ class TestParseCertInfoKeyUsage(unittest.TestCase):
         self.assertEqual(sorted(usages),
                          sorted(["digital_signature", "key_encipherment"]),
                          f"over-capture detected: {usages}")
+
+    def test_does_not_overcapture_trailing_signature_block(self):
+        """KU 가 마지막 extension 일 때 — 뒤따르는 'Signature Algorithm:' /
+        'Signature Value:' + hex 덤프를 마지막 KU 비트에 흡수하면 안 된다.
+        `openssl req -x509` 자체서명 RSA cert 의 일반 레이아웃(KU 가 마지막
+        ext, 이어서 Signature 블록)에서 매번 발생하던 over-capture 가드."""
+        cert_text = (
+            "        X509v3 extensions:\n"
+            "            X509v3 Key Usage: critical\n"
+            "                Digital Signature, Key Encipherment\n"
+            "    Signature Algorithm: sha256WithRSAEncryption\n"
+            "    Signature Value:\n"
+            "        a4:4e:1b:2c:3d:4e:5f:60:71:82\n"
+        )
+        result = parse_cert_info(cert_text)
+        self.assertEqual(sorted(result.get("key_usage", [])),
+                         sorted(["digital_signature", "key_encipherment"]),
+                         f"signature block leaked into key_usage: {result.get('key_usage')}")
+
+    def test_parses_inline_key_usage(self):
+        """비트가 헤더와 같은 줄에 오는 inline 포맷 (certtool/cfssl 등).
+        과거 정규식은 continuation 줄을 `+`(1회 이상) 로 강제해 inline 단독이면
+        매칭 실패→key_usage=None 이었다."""
+        cert_text = (
+            "Public Key Algorithm: rsaEncryption\n"
+            "X509v3 Key Usage: Digital Signature, Key Encipherment\n"
+            "X509v3 Basic Constraints: CA:FALSE\n"
+        )
+        result = parse_cert_info(cert_text)
+        self.assertEqual(sorted(result.get("key_usage", [])),
+                         sorted(["digital_signature", "key_encipherment"]))
+
+
+class TestClassifyStageOqsNames(unittest.TestCase):
+    """classify_stage 가 oqs-provider/IANA 정식 하이브리드 group 이름을
+    인식해야 한다. 신규 다운그레이드 게이트가 이 분류에 의존하므로, 오분류는
+    Stage 2/3 에서 false DOWNGRADE_DETECTED 로 직결된다."""
+
+    def test_secp_mlkem_canonical_names_are_stage3(self):
+        # P-curve + ML-KEM 하이브리드 = 프로젝트 정의상 Stage 3 (p\d+_mlkem 과
+        # 동일 그룹). 'r1' 때문에 STAGE_1 로 오분류되던 회귀 가드.
+        for name in ("SecP256r1MLKEM768", "SecP384r1MLKEM768",
+                     "SecP384r1MLKEM1024", "SecP521r1MLKEM1024"):
+            self.assertEqual(classify_stage(name), "STAGE_3_POST_QUANTUM",
+                             f"{name} 오분류")
+
+    def test_x25519_hybrid_still_stage2(self):
+        self.assertEqual(classify_stage("X25519MLKEM768"),
+                         "STAGE_2_HYBRID_PQC")
+
+    def test_lowercase_oqs_ids_unchanged(self):
+        self.assertEqual(classify_stage("p384_mlkem768"), "STAGE_3_POST_QUANTUM")
+        self.assertEqual(classify_stage("mlkem1024"), "STAGE_3_POST_QUANTUM")
+
+    def test_classical_p_curve_not_misread_as_pqc(self):
+        # secp384r1 (순수 고전 ECDH) 는 'mlkem' 이 없으므로 STAGE_1 유지.
+        self.assertEqual(classify_stage("secp384r1"), "STAGE_1_CLASSICAL")
+        self.assertEqual(classify_stage("X25519"), "STAGE_1_CLASSICAL")
+
+
+class TestDedupeKeepOrderUnhashable(unittest.TestCase):
+    """dedupe_keep_order 가 unhashable(dict) 항목을 만나도 TypeError 없이
+    순서보존 dedupe — Gemini 리뷰 반영(cipherSuites 같은 dict 리스트 방어)."""
+
+    def test_dedupe_dict_list_no_crash(self):
+        items = [{"name": "A"}, {"name": "B"}, {"name": "A"}]
+        self.assertEqual(dedupe_keep_order(items), [{"name": "A"}, {"name": "B"}])
+
+    def test_dedupe_strings_unchanged(self):
+        self.assertEqual(dedupe_keep_order(["x", "y", "x", "z"]), ["x", "y", "z"])
+
+    def test_double_register_protocol_component_with_cipher_dicts(self):
+        # 동일 ref protocol 컴포넌트(cipherSuites=dict 리스트)가 병합 경로로
+        # 들어와도 크래시하지 않아야 한다 (과거 set 기반 dedupe → TypeError).
+        comp = {
+            "bom-ref": "crypto/protocol/TLSv1.3",
+            "cryptoProperties": {
+                "assetType": "protocol",
+                "protocolProperties": {
+                    "cipherSuites": [
+                        {"name": "TLS_AES_256_GCM_SHA384"},
+                        {"name": "TLS_AES_128_GCM_SHA256"},
+                    ],
+                },
+            },
+        }
+        registry = {}
+        add_component(registry, dict(comp))
+        add_component(registry, dict(comp))  # 두 번째 등록 = 병합 경로
+        cs = (registry["crypto/protocol/TLSv1.3"]["cryptoProperties"]
+              ["protocolProperties"]["cipherSuites"])
+        self.assertEqual(cs, [{"name": "TLS_AES_256_GCM_SHA384"},
+                              {"name": "TLS_AES_128_GCM_SHA256"}])
 
 
 class TestAddComponentDedupe(unittest.TestCase):

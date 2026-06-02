@@ -88,6 +88,10 @@ HYBRID_PQC_PATTERNS = [
 # 두 번째 패턴은 negative lookbehind로 하이브리드 문자열 내 오매칭을 방지
 PURE_PQC_PATTERNS = [
     re.compile(r"p\d+[_\s-]*ml[-_\s]?kem", re.IGNORECASE),
+    # oqs-provider/IANA 정식 표기 (예: SecP384r1MLKEM768, SecP521r1MLKEM1024).
+    # P-curve 와 MLKEM 사이에 'r1' 이 끼어 위 p\d+ 패턴과 아래 lookbehind 를
+    # 모두 빗나가 STAGE_1 로 오분류되던 것을 잡는다. p\d+_mlkem 과 동일 그룹.
+    re.compile(r"secp\d+r\d+[_\s-]*ml[-_\s]?kem", re.IGNORECASE),
     re.compile(r"(?<![a-zA-Z\d])ml[-_\s]?kem[-_\s]?\d+", re.IGNORECASE),
 ]
 
@@ -378,8 +382,14 @@ def _render_static_notes(notes: list, *, redact: bool) -> list:
 
 
 def dedupe_keep_order(values: list) -> list:
-    seen = set()
-    return [x for x in (values or []) if x not in seen and not seen.add(x)]
+    # list 멤버십(set 아님) — cipherSuites 처럼 unhashable dict 가 섞인 리스트가
+    # add_component 의 cryptoProperties 병합 경로로 들어와도 TypeError 없이
+    # 순서보존 dedupe 한다. 입력 길이가 작아 O(n^2) 영향 없음.
+    out: list = []
+    for x in (values or []):
+        if x not in out:
+            out.append(x)
+    return out
 
 
 def parse_openssl_time(value: str) -> str | None:
@@ -1131,32 +1141,34 @@ def parse_cert_info(cert_text: str) -> dict:
     # X.509 v3 Key Usage extension (RFC 5280 §4.2.1.3) — openssl 출력 형태:
     #   X509v3 Key Usage: critical
     #       Digital Signature, Key Encipherment
-    # bit 텍스트가 헤더 다음 줄부터 들여쓰기된 채로 박힌다. 일부 출력 (KU 비트
-    # 다수 + 80-col wrap, certtool/cfssl 등) 은 콤마 토큰 목록이 여러 줄로
-    # 이어지므로, 들여쓰기된 모든 continuation 줄을 모아 한 번에 split 한다.
-    # 단일 줄짜리 표준 케이스는 그대로 한 줄만 캡처되어 회귀 영향 없음.
-    # negative lookahead `(?![ \\t]+X509v3 )` 는 후속 X509v3 extension 헤더
-    # (실제 openssl 출력에서 col 12 들여쓰기로 박힘) 로 매칭이 빨려들어가는
-    # over-capture 회귀를 차단한다. lookahead 가 `\\n` 직후, 즉 들여쓰기 매칭
-    # **전** 에 박혀야 한다. `[ \\t]+` 뒤에 두면 greedy 백트래킹으로 우회되어
-    # ("12 spaces 다 못 먹으면 11 spaces 로 줄여서 통과시킴") 무력화된다.
-    # 이게 없으면 "Key Encipherment X509v3 Subject Key Identifier: AB:CD..."
-    # 같은 garbage 토큰이 생겨 KeyUsage lookup 이 silent 실패한다.
-    # lowercase snake_case 토큰으로 정규화 (`Digital Signature` → `digital_signature`).
-    # 후속 RSA/EC family 분기에서 사용처(서명/암호화/합의) 판별 근거가 된다.
+    # 또는 비트가 헤더와 같은 줄에 오는 inline 포맷 (certtool/cfssl 등):
+    #   X509v3 Key Usage: Digital Signature, Key Encipherment
+    # group(1)=헤더줄 잔여(inline 비트 또는 'critical'), group(2)=들여쓰기된
+    # continuation 줄들(80-col wrap 다중 줄 포함). 둘을 합쳐 콤마 split 한다.
+    # negative lookahead 가 후속 `X509v3 ` extension 헤더 **그리고** `Signature `
+    # (KU 가 마지막 extension 일 때 뒤따르는 'Signature Algorithm:'/'Signature
+    # Value:' + hex 덤프) 로 매칭이 빨려들어가는 over-capture 를 둘 다 차단한다.
+    # `(?![ \\t]*(...))` 는 들여쓰기 깊이와 무관하게 헤더를 잡는다. 이게 없으면
+    # 마지막 KU 비트가 뒤 텍스트와 한 토큰으로 붙어 KeyUsage lookup 이 silent
+    # 실패(RSAES/ECDH family 미식별)한다. lowercase snake_case 로 정규화하여
+    # 후속 RSA/EC family 분기에서 사용처(서명/암호화/합의) 판별 근거로 쓴다.
     ku_match = re.search(
-        r"X509v3 Key Usage:[^\n]*((?:\n(?![ \t]+X509v3 )[ \t]+[^\n]+)+)",
+        r"X509v3 Key Usage:([^\n]*)"
+        r"((?:\n(?![ \t]*(?:X509v3 |Signature ))[ \t]+[^\n]+)*)",
         cert_text)
     if ku_match:
-        # capture group 안에 leading newline + indentation 공백이 섞여 들어옴.
-        # 콤마 split 전에 모든 공백 run (연속 newline/tab/space) 을 단일 space
-        # 로 정규화해서 "Data\n    Encipherment" → "Data Encipherment" →
-        # "data_encipherment" 로 깔끔하게 토큰화되게 한다.
-        usage_blob = re.sub(r"\s+", " ", ku_match.group(1))
+        # 헤더줄 잔여(group1) + continuation(group2) 결합 후 공백 run 을 단일
+        # space 로 정규화 → "Data\n    Encipherment" → "Data Encipherment".
+        usage_blob = re.sub(
+            r"\s+", " ", ku_match.group(1) + " " + ku_match.group(2)).strip()
+        # 'critical' 마커(헤더줄의 'Key Usage: critical') 는 KU 비트가 아니므로
+        # 앞에서 떼어낸다 (멀티라인일 때 다음 비트와 한 토큰으로 붙는 것 방지).
+        usage_blob = re.sub(r"^critical\b[ ,]*", "", usage_blob,
+                            flags=re.IGNORECASE)
         usages = []
         for token in usage_blob.split(","):
             normalized = token.strip().lower().replace(" ", "_")
-            if normalized:
+            if normalized and normalized != "critical":
                 usages.append(normalized)
         if usages:
             result["key_usage"] = usages

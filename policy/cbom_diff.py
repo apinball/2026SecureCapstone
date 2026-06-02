@@ -19,11 +19,17 @@ Usage:
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
+
+# cbom_gen 의 stage 분류 로직 재사용. 같은 디렉터리에 있다는 가정.
+# 분류 규칙 (HYBRID/PURE PQC 패턴) 을 두 모듈에서 따로 들고 있으면 diverge 위험.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cbom_gen import classify_stage  # noqa: E402
 
 
 # Stage 정책에 따라 클라이언트가 강제할 TLS 1.3 group.
@@ -60,7 +66,14 @@ def get_property(bom, name):
 
 
 def set_property(bom, name, value):
-    """CycloneDX BOM의 top-level properties에 값을 설정(덮어쓰기)한다."""
+    """CycloneDX BOM의 top-level properties에 값을 설정(덮어쓰기)한다.
+
+    None 은 property emit 자체를 skip — cbom_gen.make_property 의 prune_none
+    동작과 일관성 유지. 과거엔 str(None)='None' 으로 박혀서 get_property 가
+    "None" 문자열을 돌려주는 round-trip 비대칭 버그가 있었다.
+    """
+    if value is None:
+        return
     if isinstance(value, (dict, list)):
         rendered = json.dumps(value, ensure_ascii=False)
     elif isinstance(value, bool):
@@ -277,6 +290,95 @@ def _extract_cbom_algorithms(bom: dict) -> set[str]:
     return names
 
 
+# BOM 의 pqc_status (cbom_gen 의 classify_stage 결과) → Stage 숫자 매핑.
+# 사용자가 --tls-stage 안 박았을 때 BOM 클레임을 default 로 쓰기 위함.
+_PQC_STATUS_TO_STAGE = {
+    "STAGE_1_CLASSICAL":     "1",
+    "STAGE_2_HYBRID_PQC":    "2",
+    "STAGE_3_POST_QUANTUM":  "3",
+}
+
+
+def _extract_bom_stage(bom: dict) -> str | None:
+    """BOM 의 securecapstone:pqc_status property 에서 Stage 숫자를 추출.
+
+    pqc_status 가 DYNAMIC_ANALYSIS_FAILED / UNKNOWN / 미설정인 경우 None.
+    호출자는 None 을 받으면 BOM-driven gating 을 건너뛴다.
+    """
+    status = get_property(bom, "securecapstone:pqc_status")
+    if not isinstance(status, str):
+        return None
+    return _PQC_STATUS_TO_STAGE.get(status)
+
+
+# cbom_gen.classify_stage() 의 반환값 (문자열 status) → 숫자 stage 매핑.
+# UNKNOWN/DYNAMIC_ANALYSIS_FAILED 는 단정 불가 (0) — 클레임 비교 시 항상 더 낮음.
+_NEGOTIATED_STAGE_RANK = {
+    "STAGE_1_CLASSICAL":    1,
+    "STAGE_2_HYBRID_PQC":   2,
+    "STAGE_3_POST_QUANTUM": 3,
+}
+
+
+def _assess_stage_compliance(stage: str, handshake: dict,
+                             enforced_groups: str | None = None) -> tuple[bool, str]:
+    """Stage 정책 대비 실제 핸드셰이크가 다운그레이드 됐는지 판정.
+
+    Stage 2/3 가 BOM 또는 사용자에 의해 강제되었는데 실제 협상의 negotiated
+    group 분류가 클레임보다 낮으면 다운그레이드. 핵심 목적은 "BOM 이 PQC
+    라고 클레임했는데 진짜 그 수준의 PQC 가 협상됐는가" 검증이다. OQS provider
+    부재/runtime 로드 실패 같은 silent fallback 을 게이트가 잡아야 한다.
+
+    Stage 분류는 cbom_gen.classify_stage() 를 재사용한다 — HYBRID(Stage 2,
+    예: X25519MLKEM768) vs PURE/P-curve(Stage 3, 예: p384_mlkem768) 분리.
+    "MLKEM 들었는지" 단순 substring 체크는 Stage 3 클레임 + Stage 2 hybrid
+    fallback 을 못 잡는다 (regression-tested).
+
+    enforced_groups 가 주어지면(-groups 강제 핸드셰이크), 협상 group 을 읽지
+    못해(UNKNOWN) 다운그레이드로 단정하는 false positive 를 막는다. 자세한
+    근거는 아래 주석 참조.
+
+    반환: (compliant, reason). reason 은 non-compliant 일 때만 의미 있음.
+    """
+    if stage not in ("2", "3"):
+        # Stage 1 (클래식) 은 다운그레이드 개념 없음. UNKNOWN/None 도 통과.
+        return True, ""
+    protocol = (handshake.get("protocol") or "").strip()
+    group = handshake.get("group") or ""
+
+    # negotiated group 의 실제 stage 분류.
+    negotiated_status = classify_stage(group)
+    if negotiated_status == "UNKNOWN" and enforced_groups:
+        # 협상 group 을 읽지 못함 — 예: tls-tester 의 OpenSSL < 3.2.0 은
+        # SSL_get_negotiated_group() 미지원이라 's_client' 출력에 'Server Temp
+        # Key' 라인이 없어 group='' 가 된다 (scanner/tls_check.sh 주석 참고).
+        # 그러나 -groups 로 강제된 핸드셰이크가 여기까지 도달했다는 것은
+        # (verify_tls_against_cbom 은 handshake 실패 시 SKIPPED 로 먼저 반환)
+        # 클라가 제시한 그 group 들 중 하나로 협상됐다는 뜻이다 — TLS 는 제시
+        # 되지 않은 group 으로 협상할 수 없다. 따라서 '못 읽음'을 다운그레이드로
+        # 단정하지 않고, 강제 group 중 가장 낮은 분류를 보수적으로 채택한다.
+        forced = [classify_stage(g.strip())
+                  for g in enforced_groups.split(":") if g.strip()]
+        forced = [s for s in forced if s != "UNKNOWN"]
+        if forced:
+            negotiated_status = min(
+                forced, key=lambda s: _NEGOTIATED_STAGE_RANK.get(s, 0))
+            group = f"{enforced_groups} (enforced; group readback 불가)"
+    negotiated_rank = _NEGOTIATED_STAGE_RANK.get(negotiated_status, 0)
+    claimed_rank = int(stage)
+
+    if negotiated_rank < claimed_rank:
+        return False, (
+            f"Stage {stage} 클레임인데 negotiated group='{group}' 은 "
+            f"{negotiated_status} 로 분류됨 — Stage {negotiated_rank or '?'} "
+            f"수준의 협상. silent fallback 가능성.")
+    # ML-KEM key_share 는 TLS 1.3 전용이므로 stage 2/3 + TLS 1.2 다운그레이드.
+    if protocol and "TLSV1.3" not in protocol.upper().replace(" ", ""):
+        return False, (f"Stage {stage} 정책은 TLS 1.3 필수 — "
+                       f"negotiated protocol='{protocol}' (다운그레이드)")
+    return True, ""
+
+
 def _normalize(name: str) -> str:
     """비교를 위해 이름을 정규화한다 (소문자, 구분자 제거)."""
     return name.lower().replace("-", "").replace("_", "").replace(" ", "")
@@ -348,16 +450,39 @@ def verify_tls_against_cbom(bom: dict, host: str, port: int,
 
     tls_stage 가 지정되면 STAGE_TLS_GROUPS 매핑에 따라 클라이언트가 협상할
     group 을 강제한다. Stage 2 → X25519MLKEM768, Stage 3 → mlkem1024.
-    Stage 1 또는 매핑에 없는 값은 group 강제 없이 OpenSSL 기본 동작을 따른다.
+    미지정 시 BOM 의 securecapstone:pqc_status 에서 Stage 를 추론한다.
+    이렇게 BOM-driven default 를 적용하지 않으면 사용자가 --tls-stage 를
+    빠뜨렸을 때 OQS provider 가 죽어 클래식으로 fallback 된 silent 다운그레이드를
+    게이트가 못 잡는다 (false PASS).
     """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     result: dict = {"verified_at": now, "host": host, "port": port}
     if exec_container:
         result["exec_container"] = exec_container
 
-    tls_groups = STAGE_TLS_GROUPS.get(str(tls_stage)) if tls_stage else None
+    # --tls-stage 우선, 미지정 시 BOM pqc_status 에서 default.
+    # CLI 와 BOM 둘 다 있고 서로 다르면 사용자가 명시한 CLI 를 따르되, BOM 의
+    # 클레임을 result 에 별도 surface 해서 disagreement 가 silent 하지 않게.
+    bom_stage = _extract_bom_stage(bom)
+    effective_stage = str(tls_stage) if tls_stage else bom_stage
+    stage_source = None
     if tls_stage:
-        result["stage"] = str(tls_stage)
+        stage_source = "cli"
+    elif effective_stage:
+        stage_source = "bom"
+
+    tls_groups = STAGE_TLS_GROUPS.get(effective_stage) if effective_stage else None
+    if effective_stage:
+        result["stage"] = effective_stage
+        result["stage_source"] = stage_source
+    if bom_stage and tls_stage and bom_stage != str(tls_stage):
+        # CLI override 가 BOM 클레임과 다름 — 운영자가 알 수 있게 표시.
+        # CI 로그에서 "왜 stage 3 로 검사했지? BOM 은 stage 2 인데" 같은
+        # 의문을 막는다.
+        result["bom_stage"] = bom_stage
+        result["stage_disagreement"] = (
+            f"--tls-stage={tls_stage} 가 BOM pqc_status (stage {bom_stage}) "
+            f"와 다름. CLI 값으로 게이팅; BOM 이 stale 일 수 있음.")
     if tls_groups:
         result["enforced_groups"] = tls_groups
 
@@ -386,16 +511,28 @@ def verify_tls_against_cbom(bom: dict, host: str, port: int,
         else:
             missing.append(kw)
 
+    result["matched"] = matched
+    result["missing_in_cbom"] = missing
+    result["cbom_algorithm_count"] = len(cbom_algos)
+
+    # Stage 정책 위반 (다운그레이드) 우선 판정 — keyword 누락보다 먼저.
+    # 이유: BOM 이 Stage 2 PQC 라고 클레임했는데 실제 협상이 클래식이면,
+    # 클래식 group 이름(예: X25519) 이 BOM 컴포넌트 목록에 있어 keyword
+    # superset 체크는 통과한다 — 그러나 정책 게이트는 실패해야 한다.
+    if effective_stage:
+        compliant, reason = _assess_stage_compliance(
+            effective_stage, handshake, enforced_groups=tls_groups)
+        if not compliant:
+            result["status"] = "DOWNGRADE_DETECTED"
+            result["detail"] = reason
+            return result
+
     if not missing:
         result["status"] = "PASS"
         result["detail"] = "협상된 모든 알고리즘이 CBOM에 기재되어 있음"
     else:
         result["status"] = "MISMATCH"
         result["detail"] = "CBOM에 누락된 알고리즘 발견"
-
-    result["matched"] = matched
-    result["missing_in_cbom"] = missing
-    result["cbom_algorithm_count"] = len(cbom_algos)
     return result
 
 
@@ -412,10 +549,19 @@ def print_tls_verification(v: dict):
     print(f"  Protocol   : {neg.get('protocol', '?')}")
     print(f"  Cipher     : {neg.get('cipher', '?')}")
     print(f"  Key Group  : {neg.get('group', '?')}")
+    if v.get("stage"):
+        src = v.get("stage_source", "?")
+        print(f"  Stage 정책 : {v['stage']} (source: {src})")
+    if v.get("stage_disagreement"):
+        print(f"  [WARN] {v['stage_disagreement']}")
     print(f"  CBOM 알고리즘: {v['cbom_algorithm_count']}개")
 
     if status == "PASS":
         print(f"[PASS] 협상 알고리즘 전부 CBOM 내 확인 — {v['matched']}")
+    elif status == "DOWNGRADE_DETECTED":
+        print(f"[DOWNGRADE] {v.get('detail', '다운그레이드 감지')}")
+        if v.get("matched"):
+            print(f"  일치 항목: {v['matched']}")
     else:
         print(f"[MISMATCH] CBOM 누락: {v['missing_in_cbom']}")
         if v.get("matched"):
@@ -482,7 +628,10 @@ def main():
                              "(클래식 우선이라 PQC 환경에서도 클래식으로 "
                              "fallback 될 수 있음).")
     parser.add_argument("--fail-on-mismatch", action="store_true",
-                        help="TLS ↔ CBOM 불일치(MISMATCH) 시 exit 1")
+                        help="TLS ↔ CBOM 불일치(MISMATCH) 또는 Stage 정책 "
+                             "다운그레이드(DOWNGRADE_DETECTED) 시 exit 1. "
+                             "다운그레이드는 BOM 이 Stage 2/3 PQC 를 클레임했는데 "
+                             "실제 핸드셰이크가 클래식/TLS 1.2 로 떨어지는 경우.")
     parser.add_argument("--fail-on-skip", action="store_true",
                         help="TLS 검증 SKIPPED(openssl 미설치/연결 불가) 시에도 exit 1")
     args = parser.parse_args()
@@ -520,6 +669,11 @@ def main():
         status = tls_result.get("status")
         if args.fail_on_mismatch and status == "MISMATCH":
             print("[FATAL] --fail-on-mismatch: CBOM과 실제 TLS 스택 불일치",
+                  file=sys.stderr)
+            exit_code = 1
+        elif args.fail_on_mismatch and status == "DOWNGRADE_DETECTED":
+            print("[FATAL] --fail-on-mismatch: Stage 정책 다운그레이드 — "
+                  f"{tls_result.get('detail', '')}",
                   file=sys.stderr)
             exit_code = 1
         elif args.fail_on_skip and status == "SKIPPED":

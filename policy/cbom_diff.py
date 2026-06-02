@@ -320,7 +320,8 @@ _NEGOTIATED_STAGE_RANK = {
 }
 
 
-def _assess_stage_compliance(stage: str, handshake: dict) -> tuple[bool, str]:
+def _assess_stage_compliance(stage: str, handshake: dict,
+                             enforced_groups: str | None = None) -> tuple[bool, str]:
     """Stage 정책 대비 실제 핸드셰이크가 다운그레이드 됐는지 판정.
 
     Stage 2/3 가 BOM 또는 사용자에 의해 강제되었는데 실제 협상의 negotiated
@@ -333,6 +334,10 @@ def _assess_stage_compliance(stage: str, handshake: dict) -> tuple[bool, str]:
     "MLKEM 들었는지" 단순 substring 체크는 Stage 3 클레임 + Stage 2 hybrid
     fallback 을 못 잡는다 (regression-tested).
 
+    enforced_groups 가 주어지면(-groups 강제 핸드셰이크), 협상 group 을 읽지
+    못해(UNKNOWN) 다운그레이드로 단정하는 false positive 를 막는다. 자세한
+    근거는 아래 주석 참조.
+
     반환: (compliant, reason). reason 은 non-compliant 일 때만 의미 있음.
     """
     if stage not in ("2", "3"):
@@ -343,6 +348,22 @@ def _assess_stage_compliance(stage: str, handshake: dict) -> tuple[bool, str]:
 
     # negotiated group 의 실제 stage 분류.
     negotiated_status = classify_stage(group)
+    if negotiated_status == "UNKNOWN" and enforced_groups:
+        # 협상 group 을 읽지 못함 — 예: tls-tester 의 OpenSSL < 3.2.0 은
+        # SSL_get_negotiated_group() 미지원이라 's_client' 출력에 'Server Temp
+        # Key' 라인이 없어 group='' 가 된다 (scanner/tls_check.sh 주석 참고).
+        # 그러나 -groups 로 강제된 핸드셰이크가 여기까지 도달했다는 것은
+        # (verify_tls_against_cbom 은 handshake 실패 시 SKIPPED 로 먼저 반환)
+        # 클라가 제시한 그 group 들 중 하나로 협상됐다는 뜻이다 — TLS 는 제시
+        # 되지 않은 group 으로 협상할 수 없다. 따라서 '못 읽음'을 다운그레이드로
+        # 단정하지 않고, 강제 group 중 가장 낮은 분류를 보수적으로 채택한다.
+        forced = [classify_stage(g.strip())
+                  for g in enforced_groups.split(":") if g.strip()]
+        forced = [s for s in forced if s != "UNKNOWN"]
+        if forced:
+            negotiated_status = min(
+                forced, key=lambda s: _NEGOTIATED_STAGE_RANK.get(s, 0))
+            group = f"{enforced_groups} (enforced; group readback 불가)"
     negotiated_rank = _NEGOTIATED_STAGE_RANK.get(negotiated_status, 0)
     claimed_rank = int(stage)
 
@@ -500,7 +521,7 @@ def verify_tls_against_cbom(bom: dict, host: str, port: int,
     # superset 체크는 통과한다 — 그러나 정책 게이트는 실패해야 한다.
     if effective_stage:
         compliant, reason = _assess_stage_compliance(
-            effective_stage, handshake)
+            effective_stage, handshake, enforced_groups=tls_groups)
         if not compliant:
             result["status"] = "DOWNGRADE_DETECTED"
             result["detail"] = reason

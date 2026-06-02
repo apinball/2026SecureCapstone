@@ -434,6 +434,51 @@ class TestStageDowngradeDetection(unittest.TestCase):
         self.assertEqual(result["stage_source"], "cli")
 
     @patch("cbom_diff._run_tls_handshake")
+    def test_unreadable_group_stage2_enforced_is_not_downgrade(self, mock_hs):
+        """tls-tester 의 OpenSSL<3.2.0 은 협상 group 을 출력 못 해 group=''
+        가 된다 (scanner/tls_check.sh 주석). -tls-stage 2 로 -groups
+        X25519MLKEM768 강제 핸드셰이크가 성공한 이상 그 group 으로 협상된
+        것이므로 '못 읽음'을 DOWNGRADE 로 단정하면 안 되고 PASS 여야 한다.
+        이게 CI step 11 을 죽이던 false positive 의 회귀 가드."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "",  # group readback 불가
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="2")
+        self.assertEqual(result["status"], "PASS",
+                         f"unreadable group 을 다운그레이드로 오판: {result}")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_unreadable_group_stage3_enforced_is_not_downgrade(self, mock_hs):
+        """Stage 3 도 동일 — -groups p521_mlkem1024:p384_mlkem768 강제
+        성공 + group readback 불가 → PASS (false DOWNGRADE 아님)."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "",
+        }
+        bom = {
+            "properties": [
+                {"name": "securecapstone:pqc_status",
+                 "value": "STAGE_3_POST_QUANTUM"},
+            ],
+            "components": [
+                {"name": "AES-256-GCM",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "SHA384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ML-KEM-1024",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+            ],
+        }
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage="3")
+        self.assertEqual(result["status"], "PASS",
+                         f"stage3 unreadable group 오판: {result}")
+
+    @patch("cbom_diff._run_tls_handshake")
     def test_cli_stage_overrides_bom(self, mock_hs):
         """--tls-stage 가 BOM 보다 우선. stage_source='cli' 표시."""
         mock_hs.return_value = {

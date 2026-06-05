@@ -88,6 +88,10 @@ HYBRID_PQC_PATTERNS = [
 # 두 번째 패턴은 negative lookbehind로 하이브리드 문자열 내 오매칭을 방지
 PURE_PQC_PATTERNS = [
     re.compile(r"p\d+[_\s-]*ml[-_\s]?kem", re.IGNORECASE),
+    # oqs-provider/IANA 정식 표기 (예: SecP384r1MLKEM768, SecP521r1MLKEM1024).
+    # P-curve 와 MLKEM 사이에 'r1' 이 끼어 위 p\d+ 패턴과 아래 lookbehind 를
+    # 모두 빗나가 STAGE_1 로 오분류되던 것을 잡는다. p\d+_mlkem 과 동일 그룹.
+    re.compile(r"secp\d+r\d+[_\s-]*ml[-_\s]?kem", re.IGNORECASE),
     re.compile(r"(?<![a-zA-Z\d])ml[-_\s]?kem[-_\s]?\d+", re.IGNORECASE),
 ]
 
@@ -125,6 +129,118 @@ RELATED_ASSET_TYPE_MAP = {
 
 MLKEM_NAME_PATTERN = re.compile(r"ml[-_ ]?kem[-_ ]?(\d+)", re.IGNORECASE)
 SHA_ALGO_PATTERN = re.compile(r"(?<![a-zA-Z\d])sha[-_ ]?\d+(?![a-zA-Z\d])", re.IGNORECASE)
+
+# ── RSA/EC OID → CycloneDX 1.7 algorithmFamily 매핑 ────────────────────────
+# 키 값은 모두 lowercase 정규화된 형태로 비교한다.
+# 출처: RFC 8017 (PKCS#1), RFC 5912 (CMS algorithms), RFC 5480 (ECC subjectPublicKeyInfo).
+# 사용처 무관하게 family 가 단정되는 OID/이름.
+RSA_OID_FAMILIES = {
+    # RSASSA-PSS — id-RSASSA-PSS (1.2.840.113549.1.1.10)
+    "rsassa-pss":               "RSASSA-PSS",
+    "id-rsassa-pss":            "RSASSA-PSS",
+    "1.2.840.113549.1.1.10":    "RSASSA-PSS",
+    # RSASSA-PKCS1-v1_5 — sha{N}WithRSAEncryption 군
+    # md5/sha1 은 deprecated 지만 family 매핑(=RSASSA-PKCS1)은 동일.
+    "md5withrsaencryption":     "RSASSA-PKCS1",
+    "sha1withrsaencryption":    "RSASSA-PKCS1",
+    "sha224withrsaencryption":  "RSASSA-PKCS1",
+    "sha256withrsaencryption":  "RSASSA-PKCS1",
+    "sha384withrsaencryption":  "RSASSA-PKCS1",
+    "sha512withrsaencryption":  "RSASSA-PKCS1",
+    "1.2.840.113549.1.1.4":     "RSASSA-PKCS1",  # md5WithRSAEncryption
+    "1.2.840.113549.1.1.5":     "RSASSA-PKCS1",  # sha1WithRSAEncryption
+    "1.2.840.113549.1.1.11":    "RSASSA-PKCS1",  # sha256WithRSAEncryption
+    "1.2.840.113549.1.1.12":    "RSASSA-PKCS1",  # sha384WithRSAEncryption
+    "1.2.840.113549.1.1.13":    "RSASSA-PKCS1",  # sha512WithRSAEncryption
+    "1.2.840.113549.1.1.14":    "RSASSA-PKCS1",  # sha224WithRSAEncryption
+    # RSAES-OAEP — id-RSAES-OAEP (1.2.840.113549.1.1.7)
+    "rsaes-oaep":               "RSAES-OAEP",
+    "id-rsaes-oaep":            "RSAES-OAEP",
+    "1.2.840.113549.1.1.7":     "RSAES-OAEP",
+}
+
+# 사용처(KeyUsage) 정보로만 family 단정 가능한 ambiguous OID 집합.
+# rsaEncryption (1.2.840.113549.1.1.1) — SPKI 의 RSA 공개키 표기. 서명용/
+#   암호화용 어느 쪽인지 OID 만으로는 알 수 없다 (RFC 8017 §8). KeyUsage
+#   extension 의 digitalSignature / keyEncipherment 비트로 분기한다.
+RSA_OID_KEYUSAGE_AMBIGUOUS = {
+    "rsaencryption",
+    "rsa",
+    "1.2.840.113549.1.1.1",
+}
+# id-ecPublicKey (1.2.840.10045.2.1) — EC 공개키 표기. 서명용(ECDSA) /
+#   키합의용(ECDH) 어느 쪽인지 KeyUsage 로 분기한다 (RFC 5480 §3).
+EC_OID_KEYUSAGE_AMBIGUOUS = {
+    "id-ecpublickey",
+    "ecpublickey",
+    "1.2.840.10045.2.1",
+}
+
+# X.509 KeyUsage extension 의 비트 (RFC 5280 §4.2.1.3). openssl x509 -text
+# 출력의 사람 읽기 텍스트 형태를 lowercase snake_case 로 정규화한 키.
+KEY_USAGE_DIGITAL_SIGNATURE = "digital_signature"
+KEY_USAGE_KEY_ENCIPHERMENT = "key_encipherment"
+KEY_USAGE_KEY_AGREEMENT = "key_agreement"
+
+
+def _normalize_oid_or_name(name: str) -> str:
+    """OID 문자열 또는 OpenSSL 텍스트 이름을 lookup 키로 정규화.
+
+    공백/괄호 안 설명 제거 → trim → lowercase. 예:
+      "rsaEncryption"                  → "rsaencryption"
+      "1.2.840.113549.1.1.11"          → "1.2.840.113549.1.1.11"
+      "sha256WithRSAEncryption"        → "sha256withrsaencryption"
+    """
+    if not name:
+        return ""
+    head = name.split("(", 1)[0]
+    return head.strip().lower()
+
+
+def resolve_rsa_family_from_oid(name: str, key_usage):
+    """OID/이름 + KeyUsage 로 RSA family 결정. 단정 불가 시 None.
+
+    1. 사용처 무관 OID (sha*WithRSAEncryption, id-RSASSA-PSS, id-RSAES-OAEP)
+       는 RSA_OID_FAMILIES 로 즉시 해석.
+    2. ambiguous OID (rsaEncryption) 는 KeyUsage 비트로 분기:
+        - digitalSignature  → RSASSA-PKCS1 (TLS 1.2/1.3 서명용 기본)
+        - keyEncipherment   → RSAES-PKCS1  (TLS_RSA 키 전송용 — 사실상
+                              TLS 1.3 에서 제거됐지만 1.2 잔존 환경 대비)
+        - 둘 다  → 서명 우선 (RSASSA-PKCS1). 현대 TLS 의 dominant usage.
+    3. 그 외(`RSA-3072` 같은 키 길이 표기) → None — family 단정 불가.
+    """
+    nm = _normalize_oid_or_name(name)
+    if nm in RSA_OID_FAMILIES:
+        return RSA_OID_FAMILIES[nm]
+    if nm in RSA_OID_KEYUSAGE_AMBIGUOUS:
+        usage = set(key_usage or [])
+        if KEY_USAGE_DIGITAL_SIGNATURE in usage:
+            return "RSASSA-PKCS1"
+        if KEY_USAGE_KEY_ENCIPHERMENT in usage:
+            return "RSAES-PKCS1"
+        return None
+    return None
+
+
+def resolve_ec_family_from_oid(name: str, key_usage):
+    """id-ecPublicKey + KeyUsage 로 EC family 결정. 단정 불가 시 None.
+
+    - digitalSignature  → ECDSA
+    - keyAgreement      → ECDH
+    - 둘 다  → ECDSA 우선 (server cert 의 서명 용도 dominant).
+
+    ecdsa-with-* / ecdh-* 같은 사용처 박힌 표기는 이 helper 가 아니라
+    infer_algorithm_properties 의 기존 패턴 분기로 처리된다.
+    """
+    nm = _normalize_oid_or_name(name)
+    if nm in EC_OID_KEYUSAGE_AMBIGUOUS:
+        usage = set(key_usage or [])
+        if KEY_USAGE_DIGITAL_SIGNATURE in usage:
+            return "ECDSA"
+        if KEY_USAGE_KEY_AGREEMENT in usage:
+            return "ECDH"
+        return None
+    return None
 
 # ── TLS directive 파싱 패턴 (정적/컨테이너 분석 공용) ─────────────────────────
 TLS_DIRECTIVE_PATTERNS = {
@@ -233,9 +349,47 @@ def stable_redacted_suffix(value: str, length: int = 8) -> str:
     return hashlib.sha256(raw).hexdigest()[:length]
 
 
+# notes:static 안에 들어가는 path-bearing 키 집합. redact=True 일 때
+# 이 키의 local_value/container_value 를 stable hash 로 정제한다.
+_PII_PATH_KEYS = frozenset({"ssl_certificate", "ssl_certificate_key"})
+
+
+def _render_static_notes(notes: list, *, redact: bool) -> list:
+    """static.notes 리스트를 BOM emit 용 문자열 리스트로 렌더링.
+
+    각 항목이 dict 인 경우 구조화 record (kind=config_mismatch) 로 보고
+    redact 플래그에 따라 path PII 를 정제한 후 사람 읽기용 문구로 포맷.
+    문자열 항목은 그대로 통과 (PII 없는 일반 분석 note).
+    """
+    rendered = []
+    for note in notes or []:
+        if isinstance(note, str):
+            rendered.append(note)
+            continue
+        if not isinstance(note, dict):
+            continue
+        if note.get("kind") == "config_mismatch":
+            key = note.get("key", "?")
+            lv = note.get("local_value")
+            cv = note.get("container_value")
+            if redact and key in _PII_PATH_KEYS:
+                lv = f"redacted-{stable_redacted_suffix(str(lv))}"
+                cv = f"redacted-{stable_redacted_suffix(str(cv))}"
+            rendered.append(
+                f"로컬 설정의 {key}({lv})와 컨테이너 내부 설정({cv})이 "
+                f"다릅니다. CI에서 nginx.conf가 교체되었을 수 있습니다.")
+    return rendered
+
+
 def dedupe_keep_order(values: list) -> list:
-    seen = set()
-    return [x for x in (values or []) if x not in seen and not seen.add(x)]
+    # list 멤버십(set 아님) — cipherSuites 처럼 unhashable dict 가 섞인 리스트가
+    # add_component 의 cryptoProperties 병합 경로로 들어와도 TypeError 없이
+    # 순서보존 dedupe 한다. 입력 길이가 작아 O(n^2) 영향 없음.
+    out: list = []
+    for x in (values or []):
+        if x not in out:
+            out.append(x)
+    return out
 
 
 def parse_openssl_time(value: str) -> str | None:
@@ -287,6 +441,19 @@ def append_properties(target: dict, *properties: dict | None):
         target.setdefault("properties", []).extend(props)
 
 
+def _dedupe_properties(items: list) -> list:
+    """{name,value} 쌍 기준 order-preserving dedupe — properties 전용."""
+    seen = set()
+    out = []
+    for item in items or []:
+        key = (item.get("name"), item.get("value"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
 def add_component(components_by_ref: dict, component: dict):
     component = prune_none(component)
     ref = component.get("bom-ref")
@@ -296,19 +463,27 @@ def add_component(components_by_ref: dict, component: dict):
     if not existing:
         components_by_ref[ref] = component
         return
+    # 동일 ref 가 두 번 등록되는 정상 경로: configured / negotiated 양쪽에 같은
+    # 알고리즘 (예: X25519MLKEM768) 이 잡힐 때. list-valued 필드를 그대로 extend
+    # 하면 cryptoFunctions = [encapsulate, decapsulate, encapsulate, decapsulate]
+    # 처럼 중복이 누적되고, 매 스캔마다 CBOM diff 가 의미 없이 출렁인다.
+    # extend 후 order-preserving dedupe 적용.
     for key, value in component.items():
         if key == "properties":
-            existing.setdefault("properties", []).extend(value)
+            merged = existing.setdefault("properties", []) + list(value)
+            existing["properties"] = _dedupe_properties(merged)
         elif key == "cryptoProperties":
             existing.setdefault("cryptoProperties", {})
             for ck, cv in value.items():
                 if isinstance(cv, list):
-                    existing["cryptoProperties"].setdefault(ck, []).extend(cv)
+                    merged = existing["cryptoProperties"].setdefault(ck, []) + list(cv)
+                    existing["cryptoProperties"][ck] = dedupe_keep_order(merged)
                 elif isinstance(cv, dict):
                     existing["cryptoProperties"].setdefault(ck, {})
                     for dk, dv in cv.items():
                         if isinstance(dv, list):
-                            existing["cryptoProperties"][ck].setdefault(dk, []).extend(dv)
+                            merged = existing["cryptoProperties"][ck].setdefault(dk, []) + list(dv)
+                            existing["cryptoProperties"][ck][dk] = dedupe_keep_order(merged)
                         else:
                             existing["cryptoProperties"][ck].setdefault(dk, dv)
                 else:
@@ -430,9 +605,32 @@ def extract_cipher_suite_algorithms(cipher_suite: str) -> list[str]:
     return dedupe_keep_order(algorithms)
 
 
-def infer_algorithm_properties(name: str, context: str = "") -> dict:
+def infer_algorithm_properties(name: str, context: str = "",
+                               key_usage=None) -> dict:
     lower = (name or "").lower()
     props = {"executionEnvironment": "software-plain-ram", "implementationPlatform": "generic"}
+
+    # ── OID 우선 해석 (RFC 8017/5912/5480) ────────────────────────────────
+    # cert 의 Signature Algorithm 또는 Public Key Algorithm 으로 들어오는
+    # 표기가 dotted-decimal OID 또는 OpenSSL 텍스트 이름일 때, 사용처(KeyUsage)
+    # 와 결합해 RSA/EC family 와 primitive 를 단정한다. 패턴 기반의 후속
+    # 분기는 setdefault 라서 이 단계에서 박힌 값을 덮어쓰지 않는다.
+    oid_family = resolve_rsa_family_from_oid(name, key_usage)
+    ec_family = resolve_ec_family_from_oid(name, key_usage) if not oid_family else None
+    if oid_family:
+        props["_algorithmFamily"] = oid_family
+        if oid_family in ("RSAES-OAEP", "RSAES-PKCS1"):
+            # RSA 공개키 암호화 — CycloneDX 1.7 primitiveEnum 의 "pke".
+            props["primitive"] = "pke"
+        else:
+            # RSASSA-PKCS1 / RSASSA-PSS — 서명.
+            props["primitive"] = "signature"
+    elif ec_family:
+        props["_algorithmFamily"] = ec_family
+        if ec_family == "ECDH":
+            props["primitive"] = "key-agree"
+        else:
+            props["primitive"] = "signature"
 
     mlkem_match = MLKEM_NAME_PATTERN.search(lower)
     has_mlkem = bool(mlkem_match)
@@ -442,23 +640,29 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
         or bool(re.search(r"p[-_ ]?(\d+)", lower))
     )
 
-    if has_mlkem and has_curve:
-        props["primitive"] = "combiner"
-    elif has_mlkem:
-        props["primitive"] = "kem"
-    elif "x25519" in lower or "ecdh" in lower:
-        props["primitive"] = "key-agree"
-    elif any(t in lower for t in (
-        "rsa", "ecdsa", "ed25519", "ed448",
-        "dilithium", "ml-dsa", "falcon", "sphincs", "slh-dsa",
-    )):
-        props["primitive"] = "signature"
-    elif "aes" in lower:
-        props["primitive"] = "block-cipher"
-    elif "chacha20" in lower:
-        props["primitive"] = "stream-cipher"
-    elif SHA_ALGO_PATTERN.search(lower):
-        props["primitive"] = "hash"
+    # OID 해석 단계에서 primitive 가 이미 박혔으면 패턴 분기로 덮어쓰지 않는다.
+    # 예: `rsaEncryption` + KeyUsage:keyEncipherment → primitive=pke (OID 단계).
+    # 그 후 `"rsa" in lower` 가 잡혀 signature 로 잘못 바뀌면 안 됨.
+    if "primitive" not in props:
+        if has_mlkem and has_curve:
+            props["primitive"] = "combiner"
+        elif has_mlkem:
+            props["primitive"] = "kem"
+        elif "x25519" in lower or "x448" in lower or "ecdh" in lower:
+            # X25519/X448 (RFC 7748) + ECDH 모두 고전 key-agreement primitive.
+            # family 매핑 패턴과 같은 알고리즘 집합을 커버해야 한다.
+            props["primitive"] = "key-agree"
+        elif any(t in lower for t in (
+            "rsa", "ecdsa", "ed25519", "ed448",
+            "dilithium", "ml-dsa", "falcon", "sphincs", "slh-dsa",
+        )):
+            props["primitive"] = "signature"
+        elif "aes" in lower:
+            props["primitive"] = "block-cipher"
+        elif "chacha20" in lower:
+            props["primitive"] = "stream-cipher"
+        elif SHA_ALGO_PATTERN.search(lower):
+            props["primitive"] = "hash"
 
     if mlkem_match:
         props["parameterSetIdentifier"] = mlkem_match.group(1)
@@ -470,12 +674,62 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     p_match = re.search(r"p[-_ ]?(\d+)", lower)
     if p_match:
         props["_curve"] = f"P-{p_match.group(1)}"
+
+    # ── PQC 시그니처 family 매핑 (CycloneDX 1.7 cryptography-defs) ────────
+    # CycloneDX 1.7 algorithm registry 의 정식 family 명칭과 alias 처리.
+    # 반드시 SHA family 검사 **앞에** 위치해야 한다 — `SLH-DSA-SHA2-128s`
+    # 같은 이름의 "sha2" 부분 문자열이 SHA_ALGO_PATTERN 에 매칭되어 family
+    # 가 "SHA-2" 로 잘못 박히는 회귀를 차단한다 (test_pqc_not_misclassified_*).
+    #   - SLH-DSA (FIPS205): SLH-DSA-(SHA2|SHAKE)-(128s|128f|192s|192f|256s|256f)
+    #   - ML-DSA  (FIPS204): ML-DSA-(44|65|87)
+    #   - SPHINCS+ : registry 미등재의 옛 이름. SLH-DSA 로 alias 처리.
+    #   - Dilithium: registry 미등재의 옛 이름. ML-DSA 로 alias 처리.
+    if re.search(r"\bslh[-_ ]?dsa\b", lower) or re.search(r"sphincs", lower):
+        props.setdefault("_algorithmFamily", "SLH-DSA")
+    elif re.search(r"\bml[-_ ]?dsa\b", lower) or re.search(r"dilithium", lower):
+        props.setdefault("_algorithmFamily", "ML-DSA")
+
+    # ── RSA 시그니처: cert OID-style 표기 (RFC 5912 / OpenSSL) ────────────
+    # `sha{N}WithRSAEncryption` (sha1, sha224, sha256, sha384, sha512) 와
+    # `rsassa-pss` 표기는 spec 의 RSASSA-PKCS1 / RSASSA-PSS family 로 정확히
+    # 매핑된다. cert_signature_algorithm 으로 흔히 들어온다.
+    # 단순한 `rsaEncryption` (cert 의 PK algorithm) 이나 plain `RSA`,
+    # `RSA-{keyLength}` 표기는 spec 의 어느 RSA family (PKE 인지 서명인지)에
+    # 속하는지 단정할 수 없으므로 family 미설정 — parameterSetIdentifier
+    # 만 추출한다. spec 의 algorithmFamiliesEnum 에 plain "RSA" 는 없다.
+    if re.search(r"rsassa[-_ ]?pss", lower):
+        props.setdefault("_algorithmFamily", "RSASSA-PSS")
+    elif re.search(r"sha[-_ ]?\d+\s*with\s*rsa", lower) or \
+            re.search(r"rsassa[-_ ]?pkcs1", lower):
+        props.setdefault("_algorithmFamily", "RSASSA-PKCS1")
+    elif re.search(r"rsaes[-_ ]?oaep", lower):
+        props.setdefault("_algorithmFamily", "RSAES-OAEP")
+    elif re.search(r"rsaes[-_ ]?pkcs1", lower):
+        props.setdefault("_algorithmFamily", "RSAES-PKCS1")
+    # RSA parameterSetIdentifier (키 길이) 만 추출 — family 는 위에서 박혔거나
+    # 단정 불가로 미설정 상태로 둔다.
     rsa_match = re.search(r"rsa[^\d]*(\d{3,5})", lower)
     if rsa_match:
         props.setdefault("parameterSetIdentifier", rsa_match.group(1))
-        props.setdefault("_algorithmFamily", "RSA")
+
+    # ── EdDSA (RFC8032) ──────────────────────────────────────────────────
+    # Registry pattern: Ed(25519|448)[(ph|ctx)]
+    if re.search(r"\bed[-_ ]?(?:25519|448)", lower):
+        props.setdefault("_algorithmFamily", "EdDSA")
+
+    # ── ECDSA / ECDH ─────────────────────────────────────────────────────
+    # `lower.startswith("ecdsa")` 는 cipher-suite 추출 결과의 standalone
+    # "ECDSA" 와 cert sig 표기 "ecdsa-with-SHA256" 양쪽 모두 잡는다.
+    # ECDH 매핑은 ECDHE 도 포함 — Registry pattern `ECDH[E][-{curve}]`.
+    # X25519/X448 은 RFC 7748 Montgomery curve DH 로, registry 상 ECDH
+    # family 에 속한다 (RFC 8410 §3 의 id-X25519/id-X448 도 동일 의미).
+    # 단어 경계 사용으로 `ecdh` 가 다른 단어 안에 임의로 매칭되는 것을 차단.
     if lower.startswith("ecdsa"):
         props.setdefault("_algorithmFamily", "ECDSA")
+    if re.search(r"\b(?:ecdhe?|x25519|x448)\b", lower):
+        props.setdefault("_algorithmFamily", "ECDH")
+
+    # ── AES / ChaCha20 ───────────────────────────────────────────────────
     if "aes" in lower:
         props.setdefault("_algorithmFamily", "AES")
     if "chacha20" in lower:
@@ -491,6 +745,9 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     #   오면 안 됨 — 부정 lookahead 사용)
     # - SHA-1: sha 직후 1 다음에 숫자가 없어야 (SHA1, sha-1 등)
     # - 그 외 SHA-* : SHA-224/256/384/512 → SHA-2
+    # NOTE: PQC 시그니처 family (SLH-DSA 등) 가 이 블록 **앞**에서 박혀야
+    # `setdefault` 의 우선순위에 따라 PQC 이름이 SHA family 로 잘못 정착하지
+    # 않는다. 위 블록 순서를 임의로 바꾸지 말 것.
     if (re.match(r"sha[-_ ]?3(?!\d)", lower) or
             re.search(r"shake|cshake|kmac|tuplehash|parallelhash", lower)):
         props.setdefault("_algorithmFamily", "SHA-3")
@@ -502,12 +759,36 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
     if context == "certificate-signature":
         props.setdefault("cryptoFunctions", ["sign", "verify"])
     elif context == "key-exchange":
-        props.setdefault(
-            "cryptoFunctions",
-            ["encapsulate", "decapsulate"] if props.get("primitive") == "kem" else ["keygen", "keyderive"],
-        )
+        # primitive 별 cryptoFunctions 명시 분기.
+        #   - kem (pure ML-KEM): encapsulate/decapsulate
+        #   - combiner (예: X25519MLKEM768, draft-kwiatkowski-tls-ecdhe-mlkem):
+        #     PQC KEM 과 고전 ECDH 를 합치는 구조이므로 양쪽 함수 모두 수행한다.
+        #     `cryptoFunctions contains "encapsulate"` 로 PQC KEM 을 식별하는
+        #     downstream 정책 게이트가 하이브리드를 KEM 으로 인식해야 한다.
+        #   - 그 외 (key-agree): 고전 ECDH/X25519/X448 → keygen/keyderive
+        primitive = props.get("primitive")
+        if primitive == "kem":
+            props.setdefault("cryptoFunctions",
+                             ["encapsulate", "decapsulate"])
+        elif primitive == "combiner":
+            props.setdefault("cryptoFunctions",
+                             ["encapsulate", "decapsulate",
+                              "keygen", "keyderive"])
+        else:
+            props.setdefault("cryptoFunctions", ["keygen", "keyderive"])
     elif context == "public-key":
-        props.setdefault("cryptoFunctions", ["verify"])
+        # primitive 별 분기 — public key 의 cryptoFunctions 는 키가 수행하는
+        # 공개측 연산만 나열한다 (private 측 decrypt/sign 은 별도 컴포넌트).
+        primitive = props.get("primitive")
+        if primitive == "pke":
+            # RSAES (TLS_RSA 키 전송) — 공개키가 대칭키를 encrypt.
+            props.setdefault("cryptoFunctions", ["encrypt"])
+        elif primitive == "key-agree":
+            # ECDH/X25519/X448 공개키 — 키 합의 결과 도출.
+            props.setdefault("cryptoFunctions", ["keyderive"])
+        else:
+            # RSASSA / ECDSA / EdDSA / PQC 서명 공개키 — verify.
+            props.setdefault("cryptoFunctions", ["verify"])
     elif context == "cipher-suite":
         if props.get("primitive") in ("block-cipher", "stream-cipher"):
             props.setdefault("cryptoFunctions", ["encrypt", "decrypt"])
@@ -517,9 +798,10 @@ def infer_algorithm_properties(name: str, context: str = "") -> dict:
 
 
 def build_algorithm_component(name, context="", extra_properties=None,
-                              spec_version=DEFAULT_SPEC_VERSION):
+                              spec_version=DEFAULT_SPEC_VERSION,
+                              key_usage=None):
     ref = f"crypto/algorithm/{slugify(name)}"
-    alg_props = infer_algorithm_properties(name, context)
+    alg_props = infer_algorithm_properties(name, context, key_usage=key_usage)
     alg_family = alg_props.pop("_algorithmFamily", None)
     alg_curve = alg_props.pop("_curve", None)
 
@@ -856,6 +1138,41 @@ def parse_cert_info(cert_text: str) -> dict:
     if m:
         result["public_key_algorithm"] = m.group(1).strip()
 
+    # X.509 v3 Key Usage extension (RFC 5280 §4.2.1.3) — openssl 출력 형태:
+    #   X509v3 Key Usage: critical
+    #       Digital Signature, Key Encipherment
+    # 또는 비트가 헤더와 같은 줄에 오는 inline 포맷 (certtool/cfssl 등):
+    #   X509v3 Key Usage: Digital Signature, Key Encipherment
+    # group(1)=헤더줄 잔여(inline 비트 또는 'critical'), group(2)=들여쓰기된
+    # continuation 줄들(80-col wrap 다중 줄 포함). 둘을 합쳐 콤마 split 한다.
+    # negative lookahead 가 후속 `X509v3 ` extension 헤더 **그리고** `Signature `
+    # (KU 가 마지막 extension 일 때 뒤따르는 'Signature Algorithm:'/'Signature
+    # Value:' + hex 덤프) 로 매칭이 빨려들어가는 over-capture 를 둘 다 차단한다.
+    # `(?![ \\t]*(...))` 는 들여쓰기 깊이와 무관하게 헤더를 잡는다. 이게 없으면
+    # 마지막 KU 비트가 뒤 텍스트와 한 토큰으로 붙어 KeyUsage lookup 이 silent
+    # 실패(RSAES/ECDH family 미식별)한다. lowercase snake_case 로 정규화하여
+    # 후속 RSA/EC family 분기에서 사용처(서명/암호화/합의) 판별 근거로 쓴다.
+    ku_match = re.search(
+        r"X509v3 Key Usage:([^\n]*)"
+        r"((?:\n(?![ \t]*(?:X509v3 |Signature ))[ \t]+[^\n]+)*)",
+        cert_text)
+    if ku_match:
+        # 헤더줄 잔여(group1) + continuation(group2) 결합 후 공백 run 을 단일
+        # space 로 정규화 → "Data\n    Encipherment" → "Data Encipherment".
+        usage_blob = re.sub(
+            r"\s+", " ", ku_match.group(1) + " " + ku_match.group(2)).strip()
+        # 'critical' 마커(헤더줄의 'Key Usage: critical') 는 KU 비트가 아니므로
+        # 앞에서 떼어낸다 (멀티라인일 때 다음 비트와 한 토큰으로 붙는 것 방지).
+        usage_blob = re.sub(r"^critical\b[ ,]*", "", usage_blob,
+                            flags=re.IGNORECASE)
+        usages = []
+        for token in usage_blob.split(","):
+            normalized = token.strip().lower().replace(" ", "_")
+            if normalized and normalized != "critical":
+                usages.append(normalized)
+        if usages:
+            result["key_usage"] = usages
+
     sig_alg = result.get("cert_signature_algorithm", "").lower()
     pk_alg = result.get("public_key_algorithm", "").lower()
     is_pqc = any(pqc in f"{sig_alg} {pk_alg}" for pqc in PQC_CERT_ALGORITHMS)
@@ -983,9 +1300,15 @@ def build_analysis_snapshot(
         for key in ("ssl_protocols", "ssl_ciphers", "ssl_ecdh_curve", "ssl_certificate", "ssl_certificate_key"):
             lv, cv = local_findings.get(key), container_findings.get(key)
             if lv is not None and cv is not None and lv != cv:
-                static.setdefault("notes", []).append(
-                    f"로컬 설정의 {key}({lv})와 컨테이너 내부 설정({cv})이 다릅니다. "
-                    "CI에서 nginx.conf가 교체되었을 수 있습니다.")
+                # cert/key 경로처럼 PII 잠재 값이 섞일 수 있는 mismatch note 는
+                # 구조화 record 로 저장. emit 시점(convert_snapshot_to_cyclonedx)에서
+                # redact 플래그에 따라 path 를 정제해 문자열로 포맷한다.
+                static.setdefault("notes", []).append({
+                    "kind": "config_mismatch",
+                    "key": key,
+                    "local_value": lv,
+                    "container_value": cv,
+                })
     else:
         static["container_config_available"] = False
 
@@ -1035,6 +1358,7 @@ def build_analysis_snapshot(
             "cert_signature_algorithm": cert_f.get("cert_signature_algorithm"),
             "cert_public_key_algorithm": cert_f.get("public_key_algorithm"),
             "cert_public_key_bits": cert_f.get("public_key_bits"),
+            "cert_key_usage": cert_f.get("key_usage"),
             "cert_is_pqc": cert_f.get("is_pqc_certificate"),
             "certificate_subject": cert_f.get("subject"),
             "certificate_issuer": cert_f.get("issuer"),
@@ -1128,11 +1452,17 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
             if child_refs:
                 add_dependency(deps, group_ref, child_refs)
 
+    # KeyUsage extension 은 RSA/EC OID 가 사용처에 따라 family 분기될 때
+    # 결정 근거로 쓰인다 (예: rsaEncryption + Key Encipherment → RSAES-PKCS1).
+    # cert signature 컴포넌트에는 영향 없음 — sha*WithRSA / id-RSASSA-PSS 같은
+    # 사용처 박힌 OID 가 들어오므로. public-key 컴포넌트에서만 영향 있음.
+    cert_key_usage = ca.get("cert_key_usage")
+
     cert_sig_ref = None
     if ca.get("cert_signature_algorithm"):
         cert_sig_ref, c = build_algorithm_component(
             ca["cert_signature_algorithm"], "certificate-signature",
-            spec_version=spec_version,
+            spec_version=spec_version, key_usage=cert_key_usage,
         )
         register_component(cert_sig_ref, c, root=True, related_type="algorithm")
 
@@ -1140,7 +1470,7 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
     if ca.get("cert_public_key_algorithm"):
         pk_alg_ref, c = build_algorithm_component(
             ca["cert_public_key_algorithm"], "public-key",
-            spec_version=spec_version,
+            spec_version=spec_version, key_usage=cert_key_usage,
         )
         register_component(pk_alg_ref, c, root=True, related_type="algorithm")
 
@@ -1225,7 +1555,9 @@ def convert_snapshot_to_cyclonedx(snapshot, spec_version=DEFAULT_SPEC_VERSION, *
             make_property("securecapstone:analysis_detail:dynamic", dynamic),
         ])
     if isinstance(static, dict) and static.get("notes"):
-        bom_props.append(make_property("securecapstone:notes:static", static["notes"]))
+        bom_props.append(make_property(
+            "securecapstone:notes:static",
+            _render_static_notes(static["notes"], redact=redact)))
     if isinstance(dynamic, dict) and dynamic.get("error"):
         bom_props.append(make_property("securecapstone:error:dynamic", dynamic["error"]))
 

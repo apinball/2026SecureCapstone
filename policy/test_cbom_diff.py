@@ -17,6 +17,8 @@ from cbom_diff import (
     _normalize,
     _parse_handshake_output,
     _run_tls_handshake,
+    get_property,
+    set_property,
     verify_tls_against_cbom,
 )
 
@@ -354,6 +356,319 @@ class TestStageTlsGroupEnforcement(unittest.TestCase):
         self.assertNotIn("enforced_groups", result)
         _, kwargs = mock_hs.call_args
         self.assertIsNone(kwargs.get("tls_groups"))
+
+
+def _stage2_bom():
+    """BOM 이 Stage 2 PQC 를 클레임하는 fixture (pqc_status property + 컴포넌트)."""
+    return {
+        "properties": [
+            {"name": "securecapstone:pqc_status",
+             "value": "STAGE_2_HYBRID_PQC"},
+        ],
+        "components": [
+            {"name": "AES-256-GCM",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "SHA384",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "X25519",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "X25519MLKEM768",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "ML-KEM-768",
+             "cryptoProperties": {"assetType": "algorithm"}},
+        ],
+    }
+
+
+class TestStageDowngradeDetection(unittest.TestCase):
+    """BOM 의 pqc_status 클레임 대비 실제 핸드셰이크 다운그레이드 감지.
+
+    이 게이트가 없으면 OQS provider 가 런타임에 죽어 클래식으로 fallback 한
+    상황이 keyword superset 체크만으로는 PASS 떨어진다 — silent false PASS.
+    """
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_classical_fallback_under_stage2_bom_is_downgrade(self, mock_hs):
+        """BOM Stage 2 클레임 + 실제 협상은 클래식 X25519 → DOWNGRADE_DETECTED.
+        사용자가 --tls-stage 안 박았어도 BOM 에서 default 로 stage 추론."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519",  # 클래식 — MLKEM 없음
+        }
+        # tls_stage 명시 안 함 — BOM 의 pqc_status 에서 추론되어야 함
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage=None)
+        self.assertEqual(result["status"], "DOWNGRADE_DETECTED")
+        self.assertEqual(result["stage"], "2")
+        self.assertEqual(result["stage_source"], "bom")
+        # detail 에 negotiated stage 분류 결과가 포함되어야 함
+        self.assertIn("STAGE_1_CLASSICAL", result["detail"])
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_tls12_under_stage2_is_downgrade(self, mock_hs):
+        """Stage 2 + TLS 1.2 협상 → DOWNGRADE_DETECTED. ML-KEM key_share 는
+        TLS 1.3 전용이므로 1.2 다운그레이드는 PQC 비활성 시그널."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.2",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            # 어떤 이유로 group 이름엔 MLKEM 박혀있지만 protocol 이 1.2
+            "group": "X25519MLKEM768",
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="2")
+        self.assertEqual(result["status"], "DOWNGRADE_DETECTED")
+        self.assertIn("TLS 1.3", result["detail"])
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_legit_stage2_handshake_passes(self, mock_hs):
+        """정상 Stage 2 협상 (TLS 1.3 + X25519MLKEM768) → PASS."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519MLKEM768",
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="2")
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["stage_source"], "cli")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_unreadable_group_stage2_enforced_is_not_downgrade(self, mock_hs):
+        """tls-tester 의 OpenSSL<3.2.0 은 협상 group 을 출력 못 해 group=''
+        가 된다 (scanner/tls_check.sh 주석). -tls-stage 2 로 -groups
+        X25519MLKEM768 강제 핸드셰이크가 성공한 이상 그 group 으로 협상된
+        것이므로 '못 읽음'을 DOWNGRADE 로 단정하면 안 되고 PASS 여야 한다.
+        이게 CI step 11 을 죽이던 false positive 의 회귀 가드."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "",  # group readback 불가
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="2")
+        self.assertEqual(result["status"], "PASS",
+                         f"unreadable group 을 다운그레이드로 오판: {result}")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_unreadable_group_stage3_enforced_is_not_downgrade(self, mock_hs):
+        """Stage 3 도 동일 — -groups p521_mlkem1024:p384_mlkem768 강제
+        성공 + group readback 불가 → PASS (false DOWNGRADE 아님)."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "",
+        }
+        bom = {
+            "properties": [
+                {"name": "securecapstone:pqc_status",
+                 "value": "STAGE_3_POST_QUANTUM"},
+            ],
+            "components": [
+                {"name": "AES-256-GCM",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "SHA384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ML-KEM-1024",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+            ],
+        }
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage="3")
+        self.assertEqual(result["status"], "PASS",
+                         f"stage3 unreadable group 오판: {result}")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_cli_stage_overrides_bom(self, mock_hs):
+        """--tls-stage 가 BOM 보다 우선. stage_source='cli' 표시."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519MLKEM768",
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="3")
+        self.assertEqual(result["stage"], "3")
+        self.assertEqual(result["stage_source"], "cli")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_stage1_classical_handshake_passes(self, mock_hs):
+        """Stage 1 클레임 + 클래식 협상 → 정상 PASS (다운그레이드 개념 없음)."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519",
+        }
+        bom = {
+            "properties": [
+                {"name": "securecapstone:pqc_status",
+                 "value": "STAGE_1_CLASSICAL"},
+            ],
+            "components": [
+                {"name": "AES-256-GCM",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "SHA384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "X25519",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+            ],
+        }
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage=None)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["stage"], "1")
+        self.assertEqual(result["stage_source"], "bom")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_stage3_rejects_stage2_hybrid_group(self, mock_hs):
+        """Stage 3 BOM 클레임 + 핸드셰이크는 Stage 2 hybrid (X25519MLKEM768)
+        로 떨어진 경우 — DOWNGRADE_DETECTED. 과거 _assess_stage_compliance
+        가 'MLKEM in group' 만 보고 stage 구분 못 해 false PASS 던 회귀."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519MLKEM768",  # Stage 2 hybrid — Stage 3 클레임에 못 미침
+        }
+        bom = {
+            "properties": [
+                {"name": "securecapstone:pqc_status",
+                 "value": "STAGE_3_POST_QUANTUM"},
+            ],
+            "components": [
+                {"name": "AES-256-GCM",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "SHA384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "X25519MLKEM768",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ML-KEM-768",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ML-KEM-1024",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+            ],
+        }
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage=None)
+        self.assertEqual(result["status"], "DOWNGRADE_DETECTED")
+        self.assertEqual(result["stage"], "3")
+        self.assertIn("Stage 2", result["detail"])
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_stage3_accepts_p_curve_mlkem_hybrid(self, mock_hs):
+        """Stage 3 클레임 + p384_mlkem768 (PURE_PQC 분류 = Stage 3) 협상
+        → PASS. P-curve + MLKEM 은 Stage 3 정의에 포함됨."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "p384_mlkem768",
+        }
+        # _cipher_to_keywords 가 P-curve 에 대해 P-{N} + ECDH-P-{N} 둘 다
+        # 키워드로 내므로 BOM 도 둘 다 들어있어야 keyword superset 체크 통과.
+        bom = {
+            "properties": [
+                {"name": "securecapstone:pqc_status",
+                 "value": "STAGE_3_POST_QUANTUM"},
+            ],
+            "components": [
+                {"name": "AES-256-GCM",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "SHA384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "P-384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ECDH-P-384",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+                {"name": "ML-KEM-768",
+                 "cryptoProperties": {"assetType": "algorithm"}},
+            ],
+        }
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage="3")
+        self.assertEqual(result["status"], "PASS")
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_cli_bom_stage_disagreement_surfaces_warning(self, mock_hs):
+        """--tls-stage 3 + BOM pqc_status=STAGE_2_HYBRID_PQC — CLI 우선이지만
+        BOM 클레임도 result['bom_stage'] / 'stage_disagreement' 로 surface."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "p384_mlkem768",
+        }
+        result = verify_tls_against_cbom(
+            _stage2_bom(), "proxy-server", 443, tls_stage="3")
+        self.assertEqual(result["stage"], "3")
+        self.assertEqual(result["stage_source"], "cli")
+        self.assertEqual(result["bom_stage"], "2")
+        self.assertIn("stage_disagreement", result)
+
+    @patch("cbom_diff._run_tls_handshake")
+    def test_no_bom_stage_no_downgrade_check(self, mock_hs):
+        """BOM 에 pqc_status 없고 --tls-stage 도 없으면 stage 게이트는 비활성.
+        keyword superset 체크만 동작 (기존 호환)."""
+        mock_hs.return_value = {
+            "protocol": "TLSv1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "group": "X25519",
+        }
+        bom = {"components": [
+            {"name": "AES-256-GCM",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "SHA384",
+             "cryptoProperties": {"assetType": "algorithm"}},
+            {"name": "X25519",
+             "cryptoProperties": {"assetType": "algorithm"}},
+        ]}
+        result = verify_tls_against_cbom(bom, "proxy-server", 443,
+                                          tls_stage=None)
+        self.assertEqual(result["status"], "PASS")
+        self.assertNotIn("stage", result)
+
+
+class TestSetPropertyRoundTrip(unittest.TestCase):
+    """set_property / get_property 라운드트립 비대칭 회귀 가드.
+
+    과거: set_property(bom, name, None) 이 str(None) = 'None' 으로 박혀
+    get_property 가 문자열 'None' 을 돌려줬다 (None ≠ 'None'). make_property
+    의 prune_none 동작과도 불일치. None 은 emit skip 으로 통일."""
+
+    def test_none_value_skipped(self):
+        bom = {}
+        set_property(bom, "securecapstone:x", None)
+        # property 자체가 박히면 안 됨
+        props = bom.get("properties", [])
+        self.assertEqual(props, [])
+        # get_property 도 None 반환 (property 부재의 자연스러운 결과)
+        self.assertIsNone(get_property(bom, "securecapstone:x"))
+
+    def test_dict_round_trip(self):
+        bom = {}
+        original = {"stage": "2", "consistent": True}
+        set_property(bom, "securecapstone:x", original)
+        self.assertEqual(get_property(bom, "securecapstone:x"), original)
+
+    def test_list_round_trip(self):
+        bom = {}
+        set_property(bom, "securecapstone:y", ["a", "b", "c"])
+        self.assertEqual(get_property(bom, "securecapstone:y"), ["a", "b", "c"])
+
+    def test_string_pqc_status_round_trip(self):
+        """STAGE_*_* 같은 사용 빈도 높은 string 값은 그대로 보존."""
+        bom = {}
+        set_property(bom, "securecapstone:pqc_status", "STAGE_2_HYBRID_PQC")
+        self.assertEqual(
+            get_property(bom, "securecapstone:pqc_status"),
+            "STAGE_2_HYBRID_PQC")
+
+    def test_overwrite_existing(self):
+        bom = {}
+        set_property(bom, "securecapstone:x", "a")
+        set_property(bom, "securecapstone:x", "b")
+        self.assertEqual(get_property(bom, "securecapstone:x"), "b")
+        # 중복 entry 박히면 안 됨
+        self.assertEqual(
+            sum(1 for p in bom["properties"]
+                if p["name"] == "securecapstone:x"), 1)
 
 
 if __name__ == "__main__":
